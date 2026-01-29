@@ -6,12 +6,12 @@ from pandas import DataFrame, Grouper, Series
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 
-from plotly_calplot.layout_formatter import (
+from plotly_calheatmap.layout_formatter import (
     apply_general_colorscaling,
     showscale_of_heatmaps,
 )
-from plotly_calplot.single_year_calplot import year_calplot
-from plotly_calplot.utils import fill_empty_with_zeros, validate_date_column
+from plotly_calheatmap.single_year_calplot import year_calplot
+from plotly_calheatmap.utils import fill_empty_with_zeros, validate_date_column
 
 
 def _get_subplot_layout(**kwargs: Any) -> go.Layout:

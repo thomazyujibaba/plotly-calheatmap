@@ -5,7 +5,7 @@ import pandas as pd
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 
-from plotly_calplot.single_year_calplot import year_calplot
+from plotly_calheatmap.single_year_calplot import year_calplot
 
 
 class TestSingleYearCalplot(TestCase):

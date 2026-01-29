@@ -4,7 +4,7 @@ from unittest import TestCase
 import pandas as pd
 from plotly import graph_objects as go
 
-from plotly_calplot import month_calplot
+from plotly_calheatmap import month_calplot
 
 
 class TestMonthCalplot(TestCase):

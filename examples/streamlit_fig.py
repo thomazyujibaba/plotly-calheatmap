@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from plotly_calplot.calplot import calplot
+from plotly_calheatmap.calplot import calplot
 
 # mock setup
 dummy_start_date = "2019-01-01"

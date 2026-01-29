@@ -1,4 +1,4 @@
-package := "plotly_calplot"
+package := "plotly_calheatmap"
 
 st_example:
 	@poetry run streamlit run examples/streamlit_fig.py
@@ -16,13 +16,13 @@ install:
 checks:
 	@poetry run flake8 .
 	@poetry run black .
-	@poetry run mypy plotly_calplot
+	@poetry run mypy plotly_calheatmap
 	@poetry run mypy ./tests/**.py
 	@poetry run pytest tests/
 	@poetry run poetry check
 
 stubs:
-	@poetry run mypy --install-types --non-interactive plotly_calplot
+	@poetry run mypy --install-types --non-interactive plotly_calheatmap
 	@poetry run python3 -m pip install types-pytz
 
 pypi_deploy:

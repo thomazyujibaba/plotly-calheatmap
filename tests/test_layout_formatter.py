@@ -4,7 +4,7 @@ from unittest import TestCase
 import pandas as pd
 from plotly import graph_objects as go
 
-from plotly_calplot.layout_formatter import (
+from plotly_calheatmap.layout_formatter import (
     create_month_lines,
     decide_layout,
     update_plot_with_current_layout,

@@ -17,7 +17,7 @@ pip install plotly-calplot
 ## Quick Start
 
 ```python
-from plotly_calplot import calplot
+from plotly_calheatmap import calplot
 
 fig = calplot(df, x="date", y="value")
 fig.show()

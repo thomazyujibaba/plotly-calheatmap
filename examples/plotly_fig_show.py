@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from plotly_calplot.calplot import calplot, month_calplot
+from plotly_calheatmap.calplot import calplot, month_calplot
 
 # mock setup
 dummy_start_date = "2019-01-01"

@@ -3,13 +3,13 @@ from typing import List, Optional, Union
 from pandas.core.frame import DataFrame
 from plotly import graph_objects as go
 
-from plotly_calplot.date_extractors import get_date_coordinates, get_month_names
-from plotly_calplot.layout_formatter import (
+from plotly_calheatmap.date_extractors import get_date_coordinates, get_month_names
+from plotly_calheatmap.layout_formatter import (
     create_month_lines,
     decide_layout,
     update_plot_with_current_layout,
 )
-from plotly_calplot.raw_heatmap import create_heatmap_without_formatting
+from plotly_calheatmap.raw_heatmap import create_heatmap_without_formatting
 
 
 def year_calplot(

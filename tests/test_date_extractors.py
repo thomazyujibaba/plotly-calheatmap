@@ -4,7 +4,7 @@ from unittest import TestCase
 import numpy as np
 import pandas as pd
 
-from plotly_calplot.date_extractors import get_date_coordinates, get_month_names
+from plotly_calheatmap.date_extractors import get_date_coordinates, get_month_names
 
 
 class TestUtils(TestCase):

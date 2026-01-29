@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from plotly_calplot.raw_heatmap import create_heatmap_without_formatting
+from plotly_calheatmap.raw_heatmap import create_heatmap_without_formatting
 
 
 class TestRawHeatmap(TestCase):
@@ -28,7 +28,7 @@ class TestRawHeatmap(TestCase):
             columns=["ds", "value"],
         )
 
-    @patch("plotly_calplot.raw_heatmap.go")
+    @patch("plotly_calheatmap.raw_heatmap.go")
     def test_should_create_raw_heatmap(self, hm_mock: MagicMock) -> None:
         hm = create_heatmap_without_formatting(
             self.sample_dataframe,

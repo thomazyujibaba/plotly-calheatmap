@@ -4,7 +4,7 @@ from unittest import TestCase
 import pandas as pd
 import pytz
 
-from plotly_calplot.utils import fill_empty_with_zeros, validate_date_column
+from plotly_calheatmap.utils import fill_empty_with_zeros, validate_date_column
 
 
 class TestUtils(TestCase):
