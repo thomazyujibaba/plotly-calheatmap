@@ -100,16 +100,14 @@ def update_plot_with_current_layout(
     years_as_columns: bool,
 ) -> go.Figure:
     fig.update_layout(layout)
-    fig.update_xaxes(layout["xaxis"])
-    fig.update_yaxes(layout["yaxis"])
     fig.update_layout(height=total_height)
     if years_as_columns:
-        rows = [1] * len(cplt)
-        cols = [(row + 1)] * len(cplt)
+        r, c = 1, row + 1
     else:
-        rows = [(row + 1)] * len(cplt)
-        cols = [1] * len(cplt)
-    fig.add_traces(cplt, rows=rows, cols=cols)
+        r, c = row + 1, 1
+    fig.update_xaxes(layout["xaxis"], row=r, col=c)
+    fig.update_yaxes(layout["yaxis"], row=r, col=c)
+    fig.add_traces(cplt, rows=[r] * len(cplt), cols=[c] * len(cplt))
     return fig
 
 

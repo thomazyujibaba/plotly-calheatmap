@@ -86,12 +86,18 @@ class TestLayouting(TestCase):
                 },
             }
         )
-        result = update_plot_with_current_layout(go.Figure(), [], 0, layout, 100, False)
+        from plotly.subplots import make_subplots
+
+        fig = make_subplots(rows=1, cols=1)
+        result = update_plot_with_current_layout(fig, [], 0, layout, 100, False)
         self.assertEqual(result.layout.font, layout.font)
         self.assertEqual(result.layout.margin, layout.margin)
         self.assertEqual(result.layout.plot_bgcolor, layout.plot_bgcolor)
         self.assertEqual(result.layout.showlegend, layout.showlegend)
         self.assertEqual(result.layout.title, layout.title)
-        self.assertEqual(result.layout.xaxis, layout.xaxis)
-        self.assertEqual(result.layout.yaxis, layout.yaxis)
+        self.assertEqual(result.layout.xaxis.tickmode, layout.xaxis.tickmode)
+        self.assertEqual(result.layout.xaxis.ticktext, layout.xaxis.ticktext)
+        self.assertEqual(result.layout.xaxis.tickvals, layout.xaxis.tickvals)
+        self.assertEqual(result.layout.yaxis.tickmode, layout.yaxis.tickmode)
+        self.assertEqual(result.layout.yaxis.ticktext, layout.yaxis.ticktext)
         self.assertTrue(type(result) == go.Figure)
