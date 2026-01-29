@@ -3,7 +3,8 @@
 ## 0.3.1
 
 ### Bug Fixes
-Fixed Pypi setup
+- Fix Pypi setup
+- plotly-calheatmap now requires Python 3.10+
 
 ## 0.3
 
