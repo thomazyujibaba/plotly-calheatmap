@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4
+
+### New Features
+
+- **Smart colorscales** — New `colors` parameter accepts a simple list of colors (e.g. `["#0e4429", "#006d32", "#39d353"]`) and automatically computes the colorscale intervals from the data. Use with `scale_type` to control how colors are distributed:
+  - `"linear"` (default): colors evenly spaced across data range
+  - `"quantile"`: each color covers equal number of data points (good for skewed data)
+  - `"quantize"`: data range split into equal mathematical intervals
+  - `"diverging"`: two gradients meeting at a `pivot` point, with optional `symmetric` mode
+- **Zero-value distinction** — New `zero_color` parameter assigns a dedicated color to cells with value 0, visually separating them from NaN/missing cells (which remain transparent). Works with both `colors` and manual `colorscale`.
+- **Missing-data styling** — New `nan_color` parameter assigns a dedicated color to cells with no data (NaN), visually distinguishing them from cells with value 0. Works with both `colors` and manual `colorscale`, and inside the `datasets` dict.
+- **Locale-aware value formatting** — `{value:FORMAT}` in `hovertemplate` now supports the `locale` parameter. E.g. with `locale="pt_BR"`, `{value:,.2f}` renders as `1.234,50` (Brazilian number format).
+- **Responsive / auto-sizing** — All chart types (`calheatmap`, `month_calheatmap`, `hourly_calheatmap`) now use `autosize=True` by default, so the width automatically adapts to the container in notebooks, Dash apps, and web pages. Height is computed dynamically based on the number of years, months shown, and orientation. Users can still override with `width` and `total_height` when needed. Theme defaults and layout application are now centralized via shared `get_theme_defaults()` and `apply_figure_layout()` utilities.
+- All new parameters also work inside the `datasets` dict for per-metric configuration.
+- New example: `colorscale_types.py` demonstrating all scale types and zero-value distinction.
+
 ## 0.3.1
 
 ### Bug Fixes

@@ -7,11 +7,13 @@ from plotly.subplots import make_subplots
 
 from plotly_calheatmap.layout_formatter import (
     apply_general_colorscaling,
+    get_theme_defaults,
     showscale_of_heatmaps,
 )
 from plotly_calheatmap.single_year_calheatmap import year_calheatmap
 from plotly_calheatmap.i18n import get_localized_month_names
 from plotly_calheatmap.utils import fill_empty_with_zeros, validate_date_column
+from plotly_calheatmap.colorscale_utils import compute_colorscale, _apply_zero_color, _apply_nan_color
 
 
 def _get_subplot_layout(**kwargs: Any) -> go.Layout:
@@ -22,11 +24,10 @@ def _get_subplot_layout(**kwargs: Any) -> go.Layout:
     yaxis: Dict[str, Any] = kwargs.pop("yaxis", {})
     xaxis: Dict[str, Any] = kwargs.pop("xaxis", {})
 
-    def _dt(b: Any, a: Any) -> Any:
-        return a if dark_theme else b
+    _paper_bgcolor, _plot_bgcolor, _font_color = get_theme_defaults(dark_theme)
 
     # Build font with defaults, allow override
-    font = {"size": 10, "color": _dt("#9e9e9e", "#fff")}
+    font = {"size": 10, "color": _font_color}
     if "font" in kwargs:
         font.update(kwargs.pop("font"))
 
@@ -48,10 +49,11 @@ def _get_subplot_layout(**kwargs: Any) -> go.Layout:
                 **xaxis,
             },
             "font": font,
-            "plot_bgcolor": _dt("#fff", "#333"),
-            "paper_bgcolor": _dt(None, "#333"),
+            "plot_bgcolor": _plot_bgcolor,
+            "paper_bgcolor": _paper_bgcolor,
             "margin": {"t": 20, "b": 20},
             "showlegend": False,
+            "autosize": True,
             **kwargs,
         }
     )
@@ -65,6 +67,12 @@ def _prepare_dataset_configs(
     cmap_min: Optional[float],
     cmap_max: Optional[float],
     name: str,
+    colors: Optional[List[str]] = None,
+    scale_type: str = "linear",
+    zero_color: Optional[str] = None,
+    nan_color: Optional[str] = None,
+    pivot: Optional[float] = None,
+    symmetric: bool = False,
 ) -> Dict[str, Dict[str, Any]]:
     """Normalize the ``datasets`` parameter into a uniform config dict.
 
@@ -81,6 +89,12 @@ def _prepare_dataset_configs(
                 "cmap_min": cmap_min,
                 "cmap_max": cmap_max,
                 "name": name,
+                "colors": colors,
+                "scale_type": scale_type,
+                "zero_color": zero_color,
+                "nan_color": nan_color,
+                "pivot": pivot,
+                "symmetric": symmetric,
             }
         }
 
@@ -93,6 +107,12 @@ def _prepare_dataset_configs(
             "cmap_min": config.get("cmap_min", cmap_min),
             "cmap_max": config.get("cmap_max", cmap_max),
             "name": config.get("name", label),
+            "colors": config.get("colors", colors),
+            "scale_type": config.get("scale_type", scale_type),
+            "zero_color": config.get("zero_color", zero_color),
+            "nan_color": config.get("nan_color", nan_color),
+            "pivot": config.get("pivot", pivot),
+            "symmetric": config.get("symmetric", symmetric),
         }
     return normalized
 
@@ -246,6 +266,12 @@ def calheatmap(
     gap: int = 1,
     years_title: bool = False,
     colorscale: Union[str, list] = "greens",
+    colors: Optional[List[str]] = None,
+    scale_type: Optional[Literal["linear", "diverging", "quantile", "quantize"]] = "linear",
+    zero_color: Optional[str] = None,
+    nan_color: Optional[str] = None,
+    pivot: Optional[float] = None,
+    symmetric: bool = False,
     title: str = "",
     month_lines: bool = True,
     top_bottom_lines: bool = False,
@@ -489,7 +515,9 @@ def calheatmap(
 
     # Normalize dataset configs
     dataset_configs = _prepare_dataset_configs(
-        datasets, y, colorscale, showscale, cmap_min, cmap_max, name
+        datasets, y, colorscale, showscale, cmap_min, cmap_max, name,
+        colors=colors, scale_type=scale_type, zero_color=zero_color, nan_color=nan_color,
+        pivot=pivot, symmetric=symmetric,
     )
     use_dataset_swap = len(dataset_configs) > 1
 
@@ -537,14 +565,21 @@ def calheatmap(
         rows = unique_years_amount
         cols = 1
 
-    # if single row calheatmap, the height can be constant
+    # Auto-compute height based on content when not explicitly provided.
+    # The figure always uses autosize=True for width (adapts to container),
+    # so users only need to override total_height for special cases.
     if total_height is None:
+        month_count = end_month - start_month + 1
         if vertical:
-            total_height = 800
+            # Vertical: height scales with number of weeks shown
+            total_height = max(400, int(month_count * 65))
         elif use_navigation or years_as_columns or use_dataset_swap:
-            total_height = 150
+            # Single-row modes: fixed comfortable height
+            total_height = 200
         else:
-            total_height = 150 * unique_years_amount
+            # Stacked years: scale per year with a comfortable minimum
+            per_year = 160 if month_count >= 10 else max(100, int(month_count * 16))
+            total_height = max(200, per_year * unique_years_amount)
 
     fig = make_subplots(
         rows=rows,
@@ -574,9 +609,46 @@ def calheatmap(
         if ds_cmap_max is None:
             ds_cmap_max = data[ds_y].max()
 
+        # Compute colorscale from colors list if provided
+        ds_nan_color = ds_cfg.get("nan_color")
+        ds_nan_sentinel = None
+        ds_colors = ds_cfg.get("colors")
+        if ds_colors is not None:
+            result = compute_colorscale(
+                colors=ds_colors,
+                scale_type=ds_cfg.get("scale_type", "linear"),
+                data=data[ds_y].dropna().values,
+                data_min=ds_cmap_min,
+                data_max=ds_cmap_max,
+                pivot=ds_cfg.get("pivot"),
+                symmetric=ds_cfg.get("symmetric", False),
+                zero_color=ds_cfg.get("zero_color"),
+                nan_color=ds_nan_color,
+            )
+            if ds_nan_color is not None:
+                ds_colorscale, ds_nan_sentinel = result
+            else:
+                ds_colorscale = result
+            ds_cfg["colorscale"] = ds_colorscale
+        elif ds_cfg.get("zero_color") is not None and isinstance(ds_colorscale, list):
+            ds_colorscale = _apply_zero_color(
+                ds_colorscale, ds_cfg["zero_color"], ds_cmap_min, ds_cmap_max,
+            )
+            ds_cfg["colorscale"] = ds_colorscale
+
+        # Apply nan_color when using a pre-built colorscale (no colors list)
+        if ds_nan_color is not None and ds_nan_sentinel is None and isinstance(ds_colorscale, list):
+            ds_colorscale, ds_nan_sentinel = _apply_nan_color(
+                ds_colorscale, ds_nan_color, ds_cmap_min, ds_cmap_max,
+            )
+            ds_cfg["colorscale"] = ds_colorscale
+
         if log_scale:
             ds_cmap_min = np.log1p(ds_cmap_min)
             ds_cmap_max = np.log1p(ds_cmap_max)
+            if ds_nan_sentinel is not None:
+                # Sentinel must also be in log space for zmin to work
+                ds_nan_sentinel = ds_cmap_min - (ds_cmap_max - ds_cmap_min) * 0.01
 
         dataset_trace_counts: list = []
 
@@ -630,6 +702,7 @@ def calheatmap(
                 grouping_lines_width=grouping_lines_width,
                 grouping_lines_color=grouping_lines_color,
                 log_scale=log_scale,
+                nan_sentinel=ds_nan_sentinel,
             )
 
             tc = len(fig.data) - traces_before
@@ -647,7 +720,7 @@ def calheatmap(
         for idx in range(ds_start, ds_end):
             trace = fig.data[idx]
             if hasattr(trace, "zmin"):
-                trace.zmin = ds_cmap_min
+                trace.zmin = ds_nan_sentinel if ds_nan_sentinel is not None else ds_cmap_min
                 trace.zmax = ds_cmap_max
 
         # Show colorbar for this dataset if configured

@@ -8,7 +8,7 @@ from plotly.subplots import make_subplots
 
 from .i18n import get_localized_month_names
 from .calheatmap import _prepare_dataset_configs
-from .layout_formatter import apply_general_colorscaling
+from .layout_formatter import apply_figure_layout, apply_general_colorscaling, get_theme_defaults
 from .utils import validate_date_column
 
 
@@ -212,15 +212,13 @@ def hourly_calheatmap(
     -------
     go.Figure
     """
-    # Theme defaults
-    if dark_theme:
-        _paper, _plot, _font = "#333", "#333", "#fff"
-    else:
-        _paper, _plot, _font = "#fff", "#fff", "#333"
-
-    paper_bgcolor = paper_bgcolor or _paper
-    plot_bgcolor = plot_bgcolor or _plot
-    font_color = font_color or _font
+    # Theme defaults — hourly uses #fff/#333 for light theme (not None/#9e9e9e)
+    paper_bgcolor, plot_bgcolor, font_color = get_theme_defaults(
+        dark_theme,
+        paper_bgcolor or ("#fff" if not dark_theme else None),
+        plot_bgcolor,
+        font_color or ("#333" if not dark_theme else None),
+    )
 
     # Validate and prepare data
     df = data.copy()
@@ -368,23 +366,20 @@ def _build_all_years(
 
     if total_height is None:
         total_height = max(400, n_rows * 200)
-    if total_width is None:
-        total_width = max(800, n_cols * 250)
 
-    fig.update_layout(
-        title=dict(
-            text=title,
-            font=dict(
-                color=title_font_color or font_color,
-                size=title_font_size or 16,
-            ),
-        ),
+    apply_figure_layout(
+        fig,
+        total_height=total_height,
         paper_bgcolor=paper_bgcolor,
         plot_bgcolor=plot_bgcolor,
-        font=dict(color=font_color, size=font_size or 10),
-        height=total_height,
-        width=total_width,
-        margin=margin or dict(l=80, r=80, t=60, b=60),
+        font_color=font_color,
+        font_size=font_size,
+        title=title,
+        title_font_color=title_font_color,
+        title_font_size=title_font_size,
+        width=total_width or max(800, n_cols * 250),
+        margin=margin,
+        default_margin=dict(l=80, r=80, t=60, b=60),
     )
 
     return fig
@@ -612,20 +607,20 @@ def _build_with_navigation(
 
     if total_height is None:
         total_height = max(400, n_rows_per_year * 200)
-    if total_width is None:
-        total_width = max(800, n_cols * 250)
 
-    fig.update_layout(
-        title=dict(
-            text=title,
-            font=dict(color=title_font_color or font_color, size=title_font_size or 16),
-        ),
+    apply_figure_layout(
+        fig,
+        total_height=total_height,
         paper_bgcolor=paper_bgcolor,
         plot_bgcolor=plot_bgcolor,
-        font=dict(color=font_color, size=font_size or 10),
-        height=total_height,
-        width=total_width,
-        margin=margin or dict(l=80, r=40, t=80, b=60),
+        font_color=font_color,
+        font_size=font_size,
+        title=title,
+        title_font_color=title_font_color,
+        title_font_size=title_font_size,
+        width=total_width or max(800, n_cols * 250),
+        margin=margin,
+        default_margin=dict(l=80, r=40, t=80, b=60),
     )
 
     return fig

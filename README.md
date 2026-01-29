@@ -21,6 +21,10 @@ This project picks up where plotly-calplot left off, providing an interactive ca
 - Year navigation buttons (`navigation=True`)
 - Localization support (`locale` parameter) for month and day names (e.g. `pt_BR`, `es`, `fr`)
 - Customizable hovertemplate with friendly `{placeholder}` syntax and `customdata` columns
+- **Smart colorscales** — pass a `colors` list and `scale_type` (`"linear"`, `"quantile"`, `"quantize"`, `"diverging"`) for automatic interval computation
+- **Zero-value distinction** — `zero_color` gives 0-value cells a dedicated color while missing data stays transparent
+- **Missing-data styling** — `nan_color` assigns a dedicated color to NaN/missing cells, distinguishing them from zero-value cells
+- **Responsive / auto-sizing** — all chart types adapt width to the container automatically; height is computed from the data (overridable via `total_height` and `width`)
 - Fully customizable colorscales (including custom lists)
 - Month separator lines, configurable month label placement, and color scale with label/ticks
 - Flexible layout options: `gap`, `margin`, `font_*`, `paper_bgcolor`, `plot_bgcolor`, etc.
@@ -97,6 +101,61 @@ When a few extreme values wash out the rest of the heatmap, use `log_scale=True`
 ```python
 fig = calheatmap(df, x="date", y="value", log_scale=True)
 ```
+
+### Smart Colorscales & Zero Distinction
+
+Instead of manually defining colorscale intervals, pass a list of colors and let the library compute the positions automatically:
+
+```python
+# Old way (manual positions)
+colorscale=[[0.0, "#161b22"], [0.01, "#0e4429"], [0.25, "#006d32"], [1.0, "#39d353"]]
+
+# New way (automatic)
+colors=["#0e4429", "#006d32", "#26a641", "#39d353"],
+zero_color="#161b22"  # dedicated color for value 0
+```
+
+**Scale types** control how colors are distributed:
+
+```python
+# linear (default): colors evenly spaced across data range
+fig = calheatmap(df, x="date", y="value",
+    colors=["#edf8e9", "#bae4b3", "#74c476", "#31a354", "#006d2c"])
+
+# quantile: each color covers equal number of data points (good for skewed data)
+fig = calheatmap(df, x="date", y="value",
+    colors=["#edf8e9", "#bae4b3", "#74c476", "#006d2c"],
+    scale_type="quantile")
+
+# quantize: data range split into equal mathematical intervals
+fig = calheatmap(df, x="date", y="value",
+    colors=["#edf8e9", "#bae4b3", "#74c476", "#006d2c"],
+    scale_type="quantize")
+
+# diverging: two gradients meeting at a pivot point
+fig = calheatmap(df, x="date", y="temp",
+    colors=["#2166ac", "#f7f7f7", "#b2182b"],
+    scale_type="diverging", pivot=20, symmetric=True)
+```
+
+**Zero-value distinction** — give cells with value 0 a dedicated color, separate from missing data (which stays transparent):
+
+```python
+fig = calheatmap(df, x="date", y="commits",
+    colors=["#0e4429", "#006d32", "#26a641", "#39d353"],
+    zero_color="#161b22")
+```
+
+**Missing-data styling** — give NaN/missing cells a visible color instead of leaving them transparent:
+
+```python
+fig = calheatmap(df, x="date", y="commits",
+    colors=["#0e4429", "#006d32", "#26a641", "#39d353"],
+    zero_color="#161b22",
+    nan_color="#0d1117")
+```
+
+All new parameters also work inside the `datasets` dict for per-metric configuration.
 
 ### Custom Time Groupings
 

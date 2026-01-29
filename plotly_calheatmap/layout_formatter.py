@@ -1,9 +1,59 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from plotly import graph_objects as go
 
 from plotly_calheatmap.i18n import get_localized_day_abbrs
+
+
+def get_theme_defaults(
+    dark_theme: bool,
+    paper_bgcolor: Optional[str] = None,
+    plot_bgcolor: Optional[str] = None,
+    font_color: Optional[str] = None,
+) -> Tuple[Optional[str], str, str]:
+    """Return resolved (paper_bgcolor, plot_bgcolor, font_color) for the theme."""
+    if dark_theme:
+        return (paper_bgcolor or "#333", plot_bgcolor or "#333", font_color or "#fff")
+    return (paper_bgcolor, plot_bgcolor or "#fff", font_color or "#9e9e9e")
+
+
+def apply_figure_layout(
+    fig: go.Figure,
+    *,
+    total_height: int,
+    paper_bgcolor: Optional[str],
+    plot_bgcolor: str,
+    font_color: str,
+    font_size: Optional[int] = None,
+    title: str = "",
+    title_font_color: Optional[str] = None,
+    title_font_size: Optional[int] = None,
+    width: Optional[int] = None,
+    margin: Optional[dict] = None,
+    default_margin: Optional[dict] = None,
+) -> None:
+    """Apply final layout settings to a figure (sizing, theme, title)."""
+    layout: Dict[str, Any] = dict(
+        paper_bgcolor=paper_bgcolor,
+        plot_bgcolor=plot_bgcolor,
+        font=dict(color=font_color, size=font_size or 10),
+        height=total_height,
+        autosize=True,
+        showlegend=False,
+        margin=margin or default_margin or {"t": 20, "b": 20},
+    )
+    if title:
+        layout["title"] = dict(
+            text=title,
+            font=dict(
+                color=title_font_color or font_color,
+                size=title_font_size or 16,
+            ),
+        )
+    if width is not None:
+        layout["width"] = width
+    fig.update_layout(**layout)
 
 
 def decide_layout(
@@ -34,16 +84,9 @@ def decide_layout(
 
     day_names = get_localized_day_abbrs(locale)
 
-    # Theme defaults
-    if dark_theme:
-        _paper_bgcolor = paper_bgcolor or "#333"
-        _plot_bgcolor = plot_bgcolor or "#333"
-        _font_color = font_color or "#fff"
-    else:
-        _paper_bgcolor = paper_bgcolor
-        _plot_bgcolor = plot_bgcolor or "#fff"
-        _font_color = font_color or "#9e9e9e"
-
+    _paper_bgcolor, _plot_bgcolor, _font_color = get_theme_defaults(
+        dark_theme, paper_bgcolor, plot_bgcolor, font_color,
+    )
     _font_size = font_size or 10
     _margin = margin or {"t": 20, "b": 20}
 
@@ -110,6 +153,7 @@ def decide_layout(
         plot_bgcolor=_plot_bgcolor,
         margin=_margin,
         showlegend=False,
+        autosize=True,
     )
 
     return layout
@@ -287,7 +331,7 @@ def update_plot_with_current_layout(
     width: Optional[int] = None,
 ) -> go.Figure:
     fig.update_layout(layout)
-    fig.update_layout(height=total_height)
+    fig.update_layout(height=total_height, autosize=True)
     if width is not None:
         fig.update_layout(width=width)
     if years_as_columns:
