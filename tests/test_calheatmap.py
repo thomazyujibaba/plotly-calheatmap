@@ -4,12 +4,11 @@ from unittest import TestCase
 import pandas as pd
 from plotly import graph_objects as go
 
-from plotly_calheatmap import month_calplot
+from plotly_calheatmap.calheatmap import calheatmap
 
 
-class TestMonthCalplot(TestCase):
+class TestCalplot(TestCase):
     def setUp(self) -> None:
-        # Data copied on 2022-04-27 from test_calplot.py
         self.one_year_sample_dataframe = pd.DataFrame(
             [
                 (datetime(2019, 1, 1), 13),
@@ -42,28 +41,29 @@ class TestMonthCalplot(TestCase):
         )
 
     def test_should_create_one_year_only(self) -> None:
-        cp = month_calplot(self.one_year_sample_dataframe, "ds", "value")
-
-        self.assertEqual(len(cp.data), 1)  # Only one figure
-        self.assertEqual(cp.layout.yaxis.tickvals, [2019])  # Only one year
-        self.assertIsInstance(cp, go.Figure)
-        self.assertIsInstance(cp.data, tuple)
+        cp = calheatmap(self.one_year_sample_dataframe, "ds", "value")
+        self.assertTrue(len(cp.data) == 36)
+        self.assertTrue(type(cp.data) == tuple)
+        self.assertTrue(type(cp) == go.Figure)
 
     def test_should_create_multi_year(self) -> None:
-        cp = month_calplot(self.multi_year_sample_dataframe, "ds", "value")
+        cp = calheatmap(self.multi_year_sample_dataframe, "ds", "value")
 
-        self.assertEqual(len(cp.data), 1)  # Only one figure
-        self.assertEqual(len(cp.layout.yaxis.tickvals), 7)
-        self.assertIsInstance(cp, go.Figure)
-        self.assertIsInstance(cp.data, tuple)
+        self.assertTrue(len(cp.data) == 236)
+        self.assertTrue(type(cp.data) == tuple)
+        self.assertTrue(type(cp) == go.Figure)
 
     def test_should_create_black_theme_multi_year(self) -> None:
-        cp = month_calplot(
-            self.multi_year_sample_dataframe, "ds", "value", dark_theme=True
-        )
+        cp = calheatmap(self.multi_year_sample_dataframe, "ds", "value", dark_theme=True)
 
-        self.assertEqual(len(cp.data), 1)  # Only one figure
-        self.assertEqual(len(cp.layout.yaxis.tickvals), 7)
-        self.assertIsInstance(cp, go.Figure)
-        self.assertIsInstance(cp.data, tuple)
-        self.assertEqual(cp.layout["paper_bgcolor"], "#333")
+        self.assertTrue(len(cp.data) == 236)
+        self.assertTrue(type(cp.data) == tuple)
+        self.assertTrue(type(cp) == go.Figure)
+        self.assertTrue(cp.layout["paper_bgcolor"] == "#333")
+
+    def test_should_create_with_years_title(self) -> None:
+        cp = calheatmap(self.multi_year_sample_dataframe, "ds", "value", years_title=True)
+
+        self.assertTrue(len(cp.data) == 236)
+        self.assertTrue(type(cp.data) == tuple)
+        self.assertTrue(type(cp) == go.Figure)

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from plotly_calheatmap import calplot
+from plotly_calheatmap import calheatmap
 
 # GitHub-style contribution graph spanning multiple years
 end_date = pd.Timestamp.today().normalize()
@@ -27,7 +27,7 @@ df = pd.DataFrame(
     }
 )
 
-fig = calplot(
+fig = calheatmap(
     data=df,
     x="date",
     y="contributions",

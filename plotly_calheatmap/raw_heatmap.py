@@ -65,6 +65,8 @@ def create_heatmap_without_formatting(
     text_name: Optional[str] = None,
     hovertemplate: Optional[str] = None,
     extra_customdata_columns: Optional[List[str]] = None,
+    vertical: bool = False,
+    gap_positions: Optional[List[int]] = None,
 ) -> List[go.Figure]:
     hovertemplate_extra = ""
     if text is not None:
@@ -97,18 +99,45 @@ def create_heatmap_without_formatting(
     else:
         all_customdata = base_customdata
 
+    if vertical:
+        hm_x = list(weekdays_in_year)
+        hm_y = list(weeknumber_of_dates)
+    else:
+        hm_x = list(weeknumber_of_dates)
+        hm_y = list(weekdays_in_year)
+
+    z_values = data[y].tolist()
+    text_values = list(text) if text is not None else None
+    customdata_list = all_customdata.tolist()
+
+    # Fill gap positions with NaN so Plotly renders uniform cell sizes
+    if gap_positions:
+        n_custom_cols = len(customdata_list[0]) if customdata_list else 2
+        for gp in gap_positions:
+            for wd in range(7):
+                if vertical:
+                    hm_x.append(wd)
+                    hm_y.append(gp)
+                else:
+                    hm_x.append(gp)
+                    hm_y.append(wd)
+                z_values.append(None)
+                if text_values is not None:
+                    text_values.append("")
+                customdata_list.append([""] * n_custom_cols)
+
     raw_heatmap = [
         go.Heatmap(
-            x=weeknumber_of_dates,
-            y=weekdays_in_year,
-            z=data[y],
+            x=hm_x,
+            y=hm_y,
+            z=z_values,
             xgap=gap,
             ygap=gap,
             showscale=False,
             colorscale=colorscale,
-            text=text,
+            text=text_values,
             hovertemplate=resolved_hovertemplate,
-            customdata=all_customdata,
+            customdata=customdata_list,
             name=str(year),
         )
     ]

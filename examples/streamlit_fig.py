@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from plotly_calheatmap.calplot import calplot
+from plotly_calheatmap.calheatmap import calheatmap
 
 # mock setup
 dummy_start_date = "2019-01-01"
@@ -18,7 +18,7 @@ dummy_df = pd.DataFrame(
         ),
     }
 )
-fig = calplot(
+fig = calheatmap(
     dummy_df,
     x="ds",
     y="value",

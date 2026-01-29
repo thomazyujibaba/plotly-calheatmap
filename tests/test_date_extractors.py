@@ -33,7 +33,7 @@ class TestUtils(TestCase):
         self.assertEqual(month_names, expected_result)
 
     def test_should_get_date_right_coordinates(self) -> None:
-        month_positions, weekdays_in_year, weeknumber_of_dates = get_date_coordinates(
+        month_positions, weekdays_in_year, weeknumber_of_dates, gap_positions = get_date_coordinates(
             self.sample_dataframe, "ds"
         )
 

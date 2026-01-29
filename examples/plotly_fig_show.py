@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from plotly_calheatmap.calplot import calplot, month_calplot
+from plotly_calheatmap.calheatmap import calheatmap, month_calheatmap
 
 # mock setup
 dummy_start_date = "2019-01-01"
@@ -18,7 +18,7 @@ dummy_df = pd.DataFrame(
     }
 )
 
-fig1 = calplot(
+fig1 = calheatmap(
     dummy_df,
     x="ds",
     y="value",
@@ -29,7 +29,7 @@ fig1 = calplot(
 fig1.show()
 
 # same example by month
-fig2 = month_calplot(
+fig2 = month_calheatmap(
     dummy_df,
     x="ds",
     y="value",

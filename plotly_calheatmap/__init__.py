@@ -1,8 +1,10 @@
-from .calplot import calplot, month_calplot
+from .calheatmap import calheatmap, month_calheatmap
+from .hourly_calheatmap import hourly_calheatmap
 
-__version__ = "0.0.2"
+__version__ = "0.2"
 
 __all__ = [
-    "calplot",
-    "month_calplot",
+    "calheatmap",
+    "month_calheatmap",
+    "hourly_calheatmap",
 ]

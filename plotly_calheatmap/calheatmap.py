@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Union, List
+from typing import Any, Dict, Literal, Optional, Union, List
 
 import numpy as np
 from pandas import DataFrame, Grouper, Series
@@ -9,7 +9,7 @@ from plotly_calheatmap.layout_formatter import (
     apply_general_colorscaling,
     showscale_of_heatmaps,
 )
-from plotly_calheatmap.single_year_calplot import year_calplot
+from plotly_calheatmap.single_year_calheatmap import year_calheatmap
 from plotly_calheatmap.i18n import get_localized_month_names
 from plotly_calheatmap.utils import fill_empty_with_zeros, validate_date_column
 
@@ -125,7 +125,7 @@ def _add_year_navigation(
     return fig
 
 
-def calplot(
+def calheatmap(
     data: DataFrame,
     x: str,
     y: str,
@@ -163,6 +163,9 @@ def calplot(
     nav_options: Optional[Dict[str, Any]] = None,
     hovertemplate: Optional[str] = None,
     customdata: Optional[List[str]] = None,
+    vertical: bool = False,
+    month_gap: int = 0,
+    agg: Optional[Literal["sum", "mean", "count", "max"]] = None,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap
@@ -296,8 +299,34 @@ def calplot(
     customdata : list[str] = None
         list of column names from `data` to include as extra customdata.
         These become available as {column_name} in hovertemplate.
+
+    vertical : bool = False
+        if True renders months as rows instead of columns, with weeks
+        flowing top-to-bottom and days of the week as columns.
+
+    month_gap : int = 0
+        extra spacing (in week-units) inserted between each month
+        for clearer visual separation. 0 means no extra gap.
+
+    agg : str = None
+        aggregation function to apply when multiple rows share the same
+        date.  Accepts ``"sum"``, ``"mean"``, ``"count"``, or ``"max"``.
+        When provided, raw (non-aggregated) event data can be passed
+        directly; dates will be grouped and aggregated automatically.
     """
+    data = data.copy()
     data[x] = validate_date_column(data[x], date_fmt)
+
+    if agg is not None:
+        data[x] = data[x].dt.normalize()
+        agg_cols = {y: agg}
+        if text is not None:
+            agg_cols[text] = "first"
+        if customdata is not None:
+            for col in customdata:
+                if col not in agg_cols:
+                    agg_cols[col] = "first"
+        data = data.groupby(x, as_index=False).agg(agg_cols)
     unique_years = data[x].dt.year.unique()
     unique_years_amount = len(unique_years)
 
@@ -320,9 +349,11 @@ def calplot(
         rows = unique_years_amount
         cols = 1
 
-    # if single row calplot, the height can be constant
+    # if single row calheatmap, the height can be constant
     if total_height is None:
-        if use_navigation or years_as_columns:
+        if vertical:
+            total_height = 800
+        elif use_navigation or years_as_columns:
             total_height = 150
         else:
             total_height = 150 * unique_years_amount
@@ -356,7 +387,7 @@ def calplot(
             selected_year_data, x, year, start_month, end_month
         )
 
-        year_calplot(
+        year_calheatmap(
             selected_year_data,
             x,
             y,
@@ -389,6 +420,8 @@ def calplot(
             month_labels_side=month_labels_side,
             hovertemplate=hovertemplate,
             extra_customdata_columns=customdata,
+            vertical=vertical,
+            month_gap=month_gap,
         )
 
         trace_counts.append(len(fig.data) - traces_before)
@@ -407,7 +440,7 @@ def calplot(
     return fig
 
 
-def month_calplot(
+def month_calheatmap(
     data: Optional[DataFrame] = None,
     x: str | Series = "x",
     y: str | Series = "y",
@@ -430,6 +463,7 @@ def month_calplot(
     title_font_size: Optional[int] = None,
     width: Optional[int] = None,
     margin: Optional[dict] = None,
+    agg: Optional[Literal["sum", "mean", "count", "max"]] = None,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap by months (12 cols per row)
@@ -514,7 +548,12 @@ def month_calplot(
         x = str(x.name)
         y = str(y.name)
 
+    data = data.copy()
     data[x] = validate_date_column(data[x], date_fmt)
+
+    if agg is not None:
+        data[x] = data[x].dt.normalize()
+        data = data.groupby(x, as_index=False).agg({y: agg})
 
     gData = data.set_index(x)[y].groupby(Grouper(freq="ME")).sum()
     unique_years = gData.index.year.unique()

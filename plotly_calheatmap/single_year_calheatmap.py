@@ -12,7 +12,7 @@ from plotly_calheatmap.layout_formatter import (
 from plotly_calheatmap.raw_heatmap import create_heatmap_without_formatting
 
 
-def year_calplot(
+def year_calheatmap(
     data: DataFrame,
     x: str,
     y: str,
@@ -45,14 +45,16 @@ def year_calplot(
     month_labels_side: str = "bottom",
     hovertemplate: Optional[str] = None,
     extra_customdata_columns: Optional[List[str]] = None,
+    vertical: bool = False,
+    month_gap: int = 0,
 ) -> go.Figure:
     """
     Each year is subplotted separately and added to the main plot
     """
 
     month_names = get_month_names(data, x, start_month, end_month, locale=locale)
-    month_positions, weekdays_in_year, weeknumber_of_dates = get_date_coordinates(
-        data, x
+    month_positions, weekdays_in_year, weeknumber_of_dates, gap_positions = get_date_coordinates(
+        data, x, month_gap=month_gap,
     )
 
     # the calendar is actually a heatmap :)
@@ -70,6 +72,8 @@ def year_calplot(
         text_name=text_name,
         hovertemplate=hovertemplate,
         extra_customdata_columns=extra_customdata_columns,
+        vertical=vertical,
+        gap_positions=gap_positions,
     )
 
     if month_lines:
@@ -80,6 +84,8 @@ def year_calplot(
             data[x],
             weekdays_in_year,
             weeknumber_of_dates,
+            vertical=vertical,
+            month_gap=month_gap,
         )
 
     layout = decide_layout(
@@ -96,6 +102,7 @@ def year_calplot(
         title_font_size=title_font_size,
         margin=margin,
         month_labels_side=month_labels_side,
+        vertical=vertical,
     )
     fig = update_plot_with_current_layout(
         fig, cplt, row, layout, total_height, years_as_columns, width=width

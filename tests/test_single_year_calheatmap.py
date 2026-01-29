@@ -5,7 +5,7 @@ import pandas as pd
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 
-from plotly_calheatmap.single_year_calplot import year_calplot
+from plotly_calheatmap.single_year_calheatmap import year_calheatmap
 
 
 class TestSingleYearCalplot(TestCase):
@@ -26,8 +26,8 @@ class TestSingleYearCalplot(TestCase):
             columns=["ds", "value"],
         )
 
-    def test_should_create_single_year_calplot(self) -> None:
+    def test_should_create_single_year_calheatmap(self) -> None:
         fig = make_subplots(1, 1)
-        cp = year_calplot(self.sample_dataframe, "ds", "value", fig, 0, 2019)
+        cp = year_calheatmap(self.sample_dataframe, "ds", "value", fig, 0, 2019)
 
         self.assertTrue(type(cp) == go.Figure)
