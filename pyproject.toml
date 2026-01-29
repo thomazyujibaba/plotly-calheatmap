@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "plotly_calheatmap"
-version = "0.3"
+version = "0.3.1"
 description = "Calendar Plot made with Plotly"
 authors = ["Bruno Rodrigues Silva <b.rosilva1@gmail.com>", "Thomaz Yuji Baba <thomaz.yuji@gmail.com"]
 license = "MIT"
@@ -18,8 +18,8 @@ babel = ">=2.10.0"
 [tool.poetry.group.dev.dependencies]
 black = ">=23.0"
 isort = ">=5.10.1"
-pytest = ">=7.1.1"
-pytest-cov = ">=4.0.0"
+pytest = ">=8.0.0"
+pytest-cov = ">=5.0.0"
 flake8 = ">=6.0"
 vulture = ">=2.3"
 mypy = ">=1.7.1"

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+### Bug Fixes
+Fixed Pypi setup
+
 ## 0.3
 
 ### New Features
