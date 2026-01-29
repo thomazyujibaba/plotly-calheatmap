@@ -11,6 +11,7 @@ from plotly_calheatmap.layout_formatter import (
     showscale_of_heatmaps,
 )
 from plotly_calheatmap.single_year_calplot import year_calplot
+from plotly_calheatmap.i18n import get_localized_month_names
 from plotly_calheatmap.utils import fill_empty_with_zeros, validate_date_column
 
 
@@ -75,6 +76,7 @@ def calplot(
     start_month: int = 1,
     end_month: int = 12,
     date_fmt: str = "%Y-%m-%d",
+    locale: Optional[str] = None,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap
@@ -224,6 +226,7 @@ def calplot(
             years_as_columns=years_as_columns,
             start_month=start_month,
             end_month=end_month,
+            locale=locale,
         )
 
     fig = apply_general_colorscaling(fig, cmap_min, cmap_max)
@@ -234,7 +237,7 @@ def calplot(
 
 
 def month_calplot(
-    data: DataFrame = None,
+    data: Optional[DataFrame] = None,
     x: str | Series = "x",
     y: str | Series = "y",
     name: str = "y",
@@ -246,6 +249,7 @@ def month_calplot(
     total_height: Union[int, None] = None,
     showscale: bool = False,
     date_fmt: str = "%Y-%m-%d",
+    locale: Optional[str] = None,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap by months (12 cols per row)
@@ -302,8 +306,8 @@ def month_calplot(
 
         data = DataFrame({x.name: x, y.name: y})
 
-        x = x.name
-        y = y.name
+        x = str(x.name)
+        y = str(y.name)
 
     data[x] = validate_date_column(data[x], date_fmt)
 
@@ -323,7 +327,7 @@ def month_calplot(
         },
         xaxis={
             "tickvals": list(range(1, 13)),
-            "ticktext": [date(1900, i, 1).strftime("%b") for i in range(1, 13)],
+            "ticktext": [n[:3] for n in get_localized_month_names(locale)],
             "tickangle": 45,
         },
     )

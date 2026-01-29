@@ -3,13 +3,18 @@ from typing import Any, List, Optional
 import pandas as pd
 from plotly import graph_objects as go
 
+from plotly_calheatmap.i18n import get_localized_day_abbrs
+
 
 def decide_layout(
     dark_theme: bool,
     title: str,
     month_names: List[str],
     month_positions: Any,
+    locale: Optional[str] = None,
 ) -> go.Layout:
+    day_names = get_localized_day_abbrs(locale)
+
     if dark_theme:
         layout = go.Layout(
             title=title,
@@ -18,7 +23,7 @@ def decide_layout(
                 showgrid=False,
                 zeroline=False,
                 tickmode="array",
-                ticktext=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+                ticktext=day_names,
                 tickvals=[0, 1, 2, 3, 4, 5, 6],
                 autorange="reversed",
             ),
@@ -44,7 +49,7 @@ def decide_layout(
                 showgrid=False,
                 zeroline=False,
                 tickmode="array",
-                ticktext=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+                ticktext=day_names,
                 tickvals=[0, 1, 2, 3, 4, 5, 6],
                 autorange="reversed",
             ),

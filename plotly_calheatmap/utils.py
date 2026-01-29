@@ -61,6 +61,7 @@ def validate_date_column(date_column: pd.Series, date_fmt: str) -> pd.Series:
     try:
         if date_column.dt.tz is not None:
             return date_column.dt.tz_localize(None)
+        return date_column
     except Exception as e:
         raise Exception(
             f"Exception {e}\nDate column is not in datetime format or not in the right string format. Please convert it to datetime format first or use the date_fmt parameter."  # noqa

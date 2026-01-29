@@ -33,12 +33,13 @@ def year_calplot(
     years_as_columns: bool = False,
     start_month: int = 1,
     end_month: int = 12,
+    locale: Optional[str] = None,
 ) -> go.Figure:
     """
     Each year is subplotted separately and added to the main plot
     """
 
-    month_names = get_month_names(data, x, start_month, end_month)
+    month_names = get_month_names(data, x, start_month, end_month, locale=locale)
     month_positions, weekdays_in_year, weeknumber_of_dates = get_date_coordinates(
         data, x
     )
@@ -68,7 +69,7 @@ def year_calplot(
             weeknumber_of_dates,
         )
 
-    layout = decide_layout(dark_theme, title, month_names, month_positions)
+    layout = decide_layout(dark_theme, title, month_names, month_positions, locale=locale)
     fig = update_plot_with_current_layout(
         fig, cplt, row, layout, total_height, years_as_columns
     )
