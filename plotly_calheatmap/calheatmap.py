@@ -1,4 +1,4 @@
-from typing import Any, Dict, Literal, Optional, Union, List
+from typing import Any, Dict, Literal, Optional, Union, List, Tuple
 
 import numpy as np
 from pandas import DataFrame, Grouper, Series
@@ -57,54 +57,162 @@ def _get_subplot_layout(**kwargs: Any) -> go.Layout:
     )
 
 
+def _prepare_dataset_configs(
+    datasets: Optional[Dict[str, Dict[str, Any]]],
+    y: str,
+    colorscale: Union[str, list],
+    showscale: Union[bool, str],
+    cmap_min: Optional[float],
+    cmap_max: Optional[float],
+    name: str,
+) -> Dict[str, Dict[str, Any]]:
+    """Normalize the ``datasets`` parameter into a uniform config dict.
+
+    When *datasets* is ``None`` a single-dataset config is created from
+    the legacy positional parameters so the rest of the pipeline can
+    always iterate over the returned dict.
+    """
+    if datasets is None:
+        return {
+            name: {
+                "y": y,
+                "colorscale": colorscale,
+                "showscale": showscale,
+                "cmap_min": cmap_min,
+                "cmap_max": cmap_max,
+                "name": name,
+            }
+        }
+
+    normalized: Dict[str, Dict[str, Any]] = {}
+    for label, config in datasets.items():
+        normalized[label] = {
+            "y": config["y"],
+            "colorscale": config.get("colorscale", colorscale),
+            "showscale": config.get("showscale", label),
+            "cmap_min": config.get("cmap_min", cmap_min),
+            "cmap_max": config.get("cmap_max", cmap_max),
+            "name": config.get("name", label),
+        }
+    return normalized
+
+
+def _add_dataset_navigation(
+    fig: go.Figure,
+    dataset_configs: Dict[str, Dict[str, Any]],
+    trace_structure: List[Dict[str, Any]],
+    unique_years: Any,
+    use_navigation: bool,
+    nav_options: Optional[Dict[str, Any]] = None,
+) -> dict:
+    """Build the dataset dropdown menu config.
+
+    Returns a Plotly ``updatemenu`` dict (not applied to the figure).
+    """
+    total_traces = len(fig.data)
+    buttons = []
+
+    for dataset_name, config in dataset_configs.items():
+        # Show first year (or all years if no year navigation)
+        vis = [False] * total_traces
+        for t in trace_structure:
+            if t["dataset"] != dataset_name:
+                continue
+            if use_navigation and t["year"] != unique_years[0]:
+                continue
+            for i in range(t["start"], t["start"] + t["count"]):
+                vis[i] = True
+
+        buttons.append(
+            dict(
+                method="update",
+                args=[{"visible": vis}],
+                label=dataset_name,
+            )
+        )
+
+    menu_config = dict(
+        type="dropdown",
+        direction="down",
+        active=0,
+        buttons=buttons,
+        x=0,
+        xanchor="left",
+        y=1.0,
+        yanchor="bottom",
+        showactive=True,
+    )
+    if nav_options:
+        menu_config.update(nav_options)
+    return menu_config
+
+
 def _add_year_navigation(
     fig: go.Figure,
     unique_years: Any,
     trace_counts: list,
     nav_options: Optional[Dict[str, Any]] = None,
-) -> go.Figure:
+    trace_structure: Optional[List[Dict[str, Any]]] = None,
+    current_dataset: Optional[str] = None,
+) -> Union[go.Figure, dict]:
     """Add year buttons on the right side of the chart.
+
+    When *trace_structure* and *current_dataset* are provided (multi-dataset
+    mode), returns the menu config dict instead of applying it directly.
 
     Parameters
     ----------
     nav_options : dict, optional
-        Styling overrides for the button group. Supports any key accepted by
-        Plotly's ``updatemenus`` (e.g. ``font``, ``bgcolor``, ``bordercolor``,
-        ``borderwidth``, ``x``, ``y``, ``xanchor``, ``yanchor``, ``direction``,
-        ``pad``).
+        Styling overrides for the button group.
+    trace_structure : list, optional
+        Full trace metadata list (multi-dataset mode).
+    current_dataset : str, optional
+        The default-active dataset label.
     """
     total_traces = len(fig.data)
 
-    # Build cumulative trace offsets
-    offsets = []
-    acc = 0
-    for count in trace_counts:
-        offsets.append(acc)
-        acc += count
-
-    # Hide all traces except the first year
-    for i in range(trace_counts[0], total_traces):
-        fig.data[i].visible = False
-
-    # Build visibility arrays per year
-    visibility_per_year = []
-    for idx in range(len(unique_years)):
-        visibility = [False] * total_traces
-        start = offsets[idx]
-        end = start + trace_counts[idx]
-        for j in range(start, end):
-            visibility[j] = True
-        visibility_per_year.append(visibility)
-
-    buttons = []
-    for idx, year in enumerate(unique_years):
-        buttons.append(
-            dict(
-                method="restyle",
-                args=[{"visible": visibility_per_year[idx]}],
-                label=str(year),
+    if trace_structure is not None and current_dataset is not None:
+        # Multi-dataset mode: year buttons only affect current_dataset
+        buttons = []
+        for year in unique_years:
+            vis = [False] * total_traces
+            for t in trace_structure:
+                if t["dataset"] == current_dataset and t["year"] == year:
+                    for i in range(t["start"], t["start"] + t["count"]):
+                        vis[i] = True
+            buttons.append(
+                dict(method="restyle", args=[{"visible": vis}], label=str(year))
             )
-        )
+    else:
+        # Legacy single-dataset mode
+        offsets = []
+        acc = 0
+        for count in trace_counts:
+            offsets.append(acc)
+            acc += count
+
+        # Hide all traces except the first year
+        for i in range(trace_counts[0], total_traces):
+            fig.data[i].visible = False
+
+        visibility_per_year = []
+        for idx in range(len(unique_years)):
+            visibility = [False] * total_traces
+            start = offsets[idx]
+            end = start + trace_counts[idx]
+            for j in range(start, end):
+                visibility[j] = True
+            visibility_per_year.append(visibility)
+
+        buttons = []
+        for idx, year in enumerate(unique_years):
+            buttons.append(
+                dict(
+                    method="restyle",
+                    args=[{"visible": visibility_per_year[idx]}],
+                    label=str(year),
+                )
+            )
 
     menu_config = dict(
         type="buttons",
@@ -120,8 +228,10 @@ def _add_year_navigation(
     if nav_options:
         menu_config.update(nav_options)
 
-    fig.update_layout(updatemenus=[menu_config])
+    if trace_structure is not None:
+        return menu_config
 
+    fig.update_layout(updatemenus=[menu_config])
     return fig
 
 
@@ -138,6 +248,7 @@ def calheatmap(
     colorscale: Union[str, list] = "greens",
     title: str = "",
     month_lines: bool = True,
+    top_bottom_lines: bool = False,
     total_height: Union[int, None] = None,
     space_between_plots: float = 0.08,
     showscale: Union[bool, str] = False,
@@ -149,6 +260,8 @@ def calheatmap(
     start_month: int = 1,
     end_month: int = 12,
     date_fmt: str = "%Y-%m-%d",
+    skip_empty_years: bool = False,
+    replace_nans_with_zeros: bool = False,
     locale: Optional[str] = None,
     paper_bgcolor: Optional[str] = None,
     plot_bgcolor: Optional[str] = None,
@@ -166,6 +279,12 @@ def calheatmap(
     vertical: bool = False,
     month_gap: int = 0,
     agg: Optional[Literal["sum", "mean", "count", "max"]] = None,
+    grouping: Optional[Literal["month", "bimester", "quarter", "semester"]] = None,
+    grouping_lines_width: int = 2,
+    grouping_lines_color: Optional[str] = None,
+    log_scale: bool = False,
+    datasets: Optional[Dict[str, Dict[str, Any]]] = None,
+    dataset_nav_options: Optional[Dict[str, Any]] = None,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap
@@ -196,6 +315,11 @@ def calheatmap(
     month_lines_color : str = "#9e9e9e"
         if month_lines this option controls the color of
         the line between each month in the calendar
+
+    top_bottom_lines : bool = False
+        if True, draws horizontal lines at the top and bottom edges
+        of the calendar. Combined with month_lines, this fully
+        encloses each month.
 
     gap : int = 1
         controls the gap bewteen daily squares
@@ -246,6 +370,14 @@ def calheatmap(
         date format for the date column in data, defaults to "%Y-%m-%d"
         If the date column is already in datetime format, this parameter
         will be ignored.
+
+    skip_empty_years : bool = False
+        if True, years where the sum of y is less than 1 will be
+        skipped, preventing empty subplots.
+
+    replace_nans_with_zeros : bool = False
+        if True, dates without data will be displayed as 0 instead
+        of NaN.
 
     paper_bgcolor : str = None
         override paper background color (e.g. "#0d1117")
@@ -313,13 +445,60 @@ def calheatmap(
         date.  Accepts ``"sum"``, ``"mean"``, ``"count"``, or ``"max"``.
         When provided, raw (non-aggregated) event data can be passed
         directly; dates will be grouped and aggregated automatically.
+
+    grouping : str = None
+        time grouping for separator lines and axis labels. Accepts
+        ``"month"`` (default behavior), ``"bimester"``, ``"quarter"``,
+        or ``"semester"``. When set, thicker lines are drawn at group
+        boundaries and axis tick labels show group names (e.g. Q1, Q2).
+        Month lines are still drawn when ``month_lines=True``.
+
+    grouping_lines_width : int = 2
+        line width for the grouping boundary lines. Defaults to 2
+        (thicker than month_lines_width) so they stand out.
+
+    grouping_lines_color : str = None
+        color for the grouping boundary lines. Defaults to
+        ``month_lines_color`` if not provided.
+
+    log_scale : bool = False
+        if True, applies a logarithmic color scale using ``log(1 + x)``
+        so that extreme values don't wash out the rest of the heatmap.
+        Hover text still displays the original (non-transformed) values.
+
+    datasets : dict = None
+        Multiple datasets to swap between via a dropdown menu.
+        Keys are display labels, values are dicts with:
+            - "y" (str, required): column name for values
+            - "colorscale" (str or list, optional): dataset-specific colorscale
+            - "showscale" (str or bool, optional): legend title
+            - "cmap_min", "cmap_max" (float, optional): value range
+            - "name" (str, optional): name for hover template
+        Example::
+
+            datasets={
+                "Sales": {"y": "sales", "colorscale": "greens"},
+                "Activity": {"y": "activity", "colorscale": "blues"},
+            }
+
+    dataset_nav_options : dict = None
+        Styling overrides for the dataset dropdown menu.
     """
     data = data.copy()
     data[x] = validate_date_column(data[x], date_fmt)
 
+    # Normalize dataset configs
+    dataset_configs = _prepare_dataset_configs(
+        datasets, y, colorscale, showscale, cmap_min, cmap_max, name
+    )
+    use_dataset_swap = len(dataset_configs) > 1
+
+    # Collect all y columns needed for aggregation
+    all_y_cols = list({cfg["y"] for cfg in dataset_configs.values()})
+
     if agg is not None:
         data[x] = data[x].dt.normalize()
-        agg_cols = {y: agg}
+        agg_cols = {col: agg for col in all_y_cols}
         if text is not None:
             agg_cols[text] = "first"
         if customdata is not None:
@@ -327,7 +506,16 @@ def calheatmap(
                 if col not in agg_cols:
                     agg_cols[col] = "first"
         data = data.groupby(x, as_index=False).agg(agg_cols)
+
+    # Use first y column for skip_empty_years check
+    primary_y = list(dataset_configs.values())[0]["y"]
     unique_years = data[x].dt.year.unique()
+
+    if skip_empty_years:
+        unique_years = np.array(
+            [yr for yr in unique_years if data.loc[data[x].dt.year == yr, primary_y].sum() >= 1]
+        )
+
     unique_years_amount = len(unique_years)
 
     # navigation only makes sense with multiple years
@@ -338,7 +526,7 @@ def calheatmap(
     else:
         subplot_titles = None
 
-    if use_navigation:
+    if use_navigation or use_dataset_swap:
         rows = 1
         cols = 1
         subplot_titles = None
@@ -353,7 +541,7 @@ def calheatmap(
     if total_height is None:
         if vertical:
             total_height = 800
-        elif use_navigation or years_as_columns:
+        elif use_navigation or years_as_columns or use_dataset_swap:
             total_height = 150
         else:
             total_height = 150 * unique_years_amount
@@ -365,77 +553,172 @@ def calheatmap(
         vertical_spacing=space_between_plots,
     )
 
-    # getting cmap_min and cmap_max
-    if cmap_min is None:
-        cmap_min = data[y].min()
-
-    if cmap_max is None:
-        cmap_max = data[y].max()
-
     data = data[
         data[x].dt.month.isin(np.arange(start_month, end_month + 1, 1).tolist())
     ]
 
-    # Track trace counts per year for navigation
-    trace_counts = []
+    # Track trace counts per year for navigation (legacy) and full structure
+    trace_counts: list = []
+    trace_structure: List[Dict[str, Any]] = []
 
-    for i, year in enumerate(unique_years):
-        traces_before = len(fig.data)
+    for dataset_label, ds_cfg in dataset_configs.items():
+        ds_y = ds_cfg["y"]
+        ds_colorscale = ds_cfg["colorscale"]
+        ds_name = ds_cfg["name"]
 
-        selected_year_data = data.loc[data[x].dt.year == year]
-        selected_year_data = fill_empty_with_zeros(
-            selected_year_data, x, year, start_month, end_month
+        # Compute per-dataset color range
+        ds_cmap_min = ds_cfg["cmap_min"]
+        ds_cmap_max = ds_cfg["cmap_max"]
+        if ds_cmap_min is None:
+            ds_cmap_min = data[ds_y].min()
+        if ds_cmap_max is None:
+            ds_cmap_max = data[ds_y].max()
+
+        if log_scale:
+            ds_cmap_min = np.log1p(ds_cmap_min)
+            ds_cmap_max = np.log1p(ds_cmap_max)
+
+        dataset_trace_counts: list = []
+
+        for i, year in enumerate(unique_years):
+            traces_before = len(fig.data)
+
+            selected_year_data = data.loc[data[x].dt.year == year]
+            selected_year_data = fill_empty_with_zeros(
+                selected_year_data, x, year, start_month, end_month
+            )
+            if replace_nans_with_zeros:
+                selected_year_data[ds_y] = selected_year_data[ds_y].fillna(0)
+
+            year_calheatmap(
+                selected_year_data,
+                x,
+                ds_y,
+                name=ds_name,
+                month_lines=month_lines,
+                month_lines_width=month_lines_width,
+                month_lines_color=month_lines_color,
+                top_bottom_lines=top_bottom_lines,
+                colorscale=ds_colorscale,
+                year=year,
+                fig=fig,
+                dark_theme=dark_theme,
+                gap=gap,
+                title=title,
+                row=0 if (use_navigation or use_dataset_swap) else i,
+                total_height=total_height,
+                text=None if text is None else selected_year_data[text].tolist(),
+                text_name=text,
+                years_as_columns=years_as_columns if not (use_navigation or use_dataset_swap) else False,
+                start_month=start_month,
+                end_month=end_month,
+                locale=locale,
+                paper_bgcolor=paper_bgcolor,
+                plot_bgcolor=plot_bgcolor,
+                font_color=font_color,
+                font_size=font_size,
+                title_font_color=title_font_color,
+                title_font_size=title_font_size,
+                width=width,
+                margin=margin,
+                month_labels_side=month_labels_side,
+                hovertemplate=hovertemplate,
+                extra_customdata_columns=customdata,
+                vertical=vertical,
+                month_gap=month_gap,
+                grouping=grouping,
+                grouping_lines_width=grouping_lines_width,
+                grouping_lines_color=grouping_lines_color,
+                log_scale=log_scale,
+            )
+
+            tc = len(fig.data) - traces_before
+            dataset_trace_counts.append(tc)
+            trace_structure.append({
+                "dataset": dataset_label,
+                "year": year,
+                "start": traces_before,
+                "count": tc,
+            })
+
+        # Apply colorscaling to this dataset's traces
+        ds_start = trace_structure[-len(unique_years)]["start"]
+        ds_end = trace_structure[-1]["start"] + trace_structure[-1]["count"]
+        for idx in range(ds_start, ds_end):
+            trace = fig.data[idx]
+            if hasattr(trace, "zmin"):
+                trace.zmin = ds_cmap_min
+                trace.zmax = ds_cmap_max
+
+        # Show colorbar for this dataset if configured
+        ds_showscale = ds_cfg["showscale"]
+        if ds_showscale:
+            scale_title = ds_showscale if isinstance(ds_showscale, str) else ""
+            tick_vals = np.linspace(ds_cmap_min, ds_cmap_max, 5).tolist() if scale_ticks else None
+            colorbar = dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.05,
+                xanchor="center",
+                x=0.5,
+                thickness=10,
+                len=0.5,
+                title=dict(text=scale_title, side="top"),
+            )
+            if tick_vals:
+                colorbar["tickvals"] = tick_vals
+            # Enable colorbar on first heatmap trace of each year so it
+            # stays visible when switching years via navigation.
+            ds_traces = [t for t in trace_structure if t["dataset"] == dataset_label]
+            for t in ds_traces:
+                for idx in range(t["start"], t["start"] + t["count"]):
+                    trace = fig.data[idx]
+                    if hasattr(trace, "zmin"):
+                        trace.showscale = True
+                        trace.colorbar = colorbar
+                        break
+
+        # Keep legacy trace_counts for single-dataset path
+        if not use_dataset_swap:
+            trace_counts = dataset_trace_counts
+
+    # Multi-dataset: set initial visibility and build menus
+    if use_dataset_swap:
+        first_dataset = list(dataset_configs.keys())[0]
+        first_year = unique_years[0]
+        for t in trace_structure:
+            is_visible = t["dataset"] == first_dataset and (
+                t["year"] == first_year if use_navigation else True
+            )
+            for i in range(t["start"], t["start"] + t["count"]):
+                fig.data[i].visible = is_visible
+
+        menus = []
+        menus.append(
+            _add_dataset_navigation(
+                fig, dataset_configs, trace_structure,
+                unique_years, use_navigation, dataset_nav_options,
+            )
         )
-
-        year_calheatmap(
-            selected_year_data,
-            x,
-            y,
-            name=name,
-            month_lines=month_lines,
-            month_lines_width=month_lines_width,
-            month_lines_color=month_lines_color,
-            colorscale=colorscale,
-            year=year,
-            fig=fig,
-            dark_theme=dark_theme,
-            gap=gap,
-            title=title,
-            row=0 if use_navigation else i,
-            total_height=total_height,
-            text=None if text is None else selected_year_data[text].tolist(),
-            text_name=text,
-            years_as_columns=years_as_columns if not use_navigation else False,
-            start_month=start_month,
-            end_month=end_month,
-            locale=locale,
-            paper_bgcolor=paper_bgcolor,
-            plot_bgcolor=plot_bgcolor,
-            font_color=font_color,
-            font_size=font_size,
-            title_font_color=title_font_color,
-            title_font_size=title_font_size,
-            width=width,
-            margin=margin,
-            month_labels_side=month_labels_side,
-            hovertemplate=hovertemplate,
-            extra_customdata_columns=customdata,
-            vertical=vertical,
-            month_gap=month_gap,
-        )
-
-        trace_counts.append(len(fig.data) - traces_before)
-
-    fig = apply_general_colorscaling(fig, cmap_min, cmap_max)
-    if showscale:
-        scale_title = showscale if isinstance(showscale, str) else ""
-        tick_vals = np.linspace(cmap_min, cmap_max, 5).tolist() if scale_ticks else None
-        fig = showscale_of_heatmaps(fig, scale_title=scale_title, scale_ticks=tick_vals)
-
-    if use_navigation:
-        fig = _add_year_navigation(
-            fig, unique_years, trace_counts, nav_options=nav_options
-        )
+        if use_navigation:
+            menus.append(
+                _add_year_navigation(
+                    fig, unique_years, trace_counts,
+                    nav_options=nav_options,
+                    trace_structure=trace_structure,
+                    current_dataset=first_dataset,
+                )
+            )
+        fig.update_layout(updatemenus=menus)
+        # Add top margin so the dropdown doesn't overlap the plot
+        current_margin = fig.layout.margin
+        top = current_margin.t if current_margin.t is not None else 20
+        fig.update_layout(margin={"t": max(top, 80)})
+    else:
+        if use_navigation:
+            fig = _add_year_navigation(
+                fig, unique_years, trace_counts, nav_options=nav_options
+            )
 
     return fig
 

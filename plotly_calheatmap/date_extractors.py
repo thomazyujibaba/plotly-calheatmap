@@ -70,3 +70,58 @@ def get_date_coordinates(
         month_positions = np.linspace(1.5, 50, 12)
 
     return month_positions, weekdays_in_year, weeknumber_of_dates, gap_positions
+
+
+GROUPINGS = {
+    "bimester": {
+        "boundaries": [1, 3, 5, 7, 9, 11],
+        "labels": ["B1", "B2", "B3", "B4", "B5", "B6"],
+    },
+    "quarter": {
+        "boundaries": [1, 4, 7, 10],
+        "labels": ["Q1", "Q2", "Q3", "Q4"],
+    },
+    "semester": {
+        "boundaries": [1, 7],
+        "labels": ["S1", "S2"],
+    },
+}
+
+
+def get_group_names_and_positions(
+    data: pd.DataFrame,
+    x: str,
+    grouping: str,
+    weeknumber_of_dates: List[int],
+) -> Tuple[List[str], List[float]]:
+    """Compute tick labels and positions for a given grouping.
+
+    Returns (group_names, group_positions) lists suitable for axis ticks.
+    """
+    cfg = GROUPINGS[grouping]
+    boundaries = cfg["boundaries"]
+    labels = cfg["labels"]
+
+    months = data[x].dt.month.values
+
+    group_names: List[str] = []
+    group_positions: List[float] = []
+
+    for i, boundary_month in enumerate(boundaries):
+        # Determine which months belong to this group
+        if i + 1 < len(boundaries):
+            next_boundary = boundaries[i + 1]
+        else:
+            next_boundary = 13  # past December
+
+        group_months = list(range(boundary_month, next_boundary))
+        # Find week numbers for dates in this group
+        wks = [
+            wk for wk, m in zip(weeknumber_of_dates, months)
+            if m in group_months
+        ]
+        if wks:
+            group_names.append(labels[i])
+            group_positions.append((min(wks) + max(wks)) / 2)
+
+    return group_names, group_positions

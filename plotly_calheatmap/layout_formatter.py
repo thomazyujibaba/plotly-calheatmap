@@ -157,6 +157,123 @@ def create_month_lines(
                         ),
                         go.Scatter(x=[wkn + 0.5, wkn + 0.5], y=[dow - 0.5, -0.5], **kwargs),
                     ]
+
+    # Close the end of the last month
+    date = data.iloc[-1]
+    dow = weekdays_in_year[-1]
+    wkn = weeknumber_of_dates[-1]
+    if vertical:
+        cplt += [go.Scatter(y=[wkn + 0.5, wkn + 0.5], x=[-0.5, dow + 0.5], **kwargs)]
+        if dow != 6:
+            cplt += [
+                go.Scatter(y=[wkn - 0.5, wkn + 0.5], x=[dow + 0.5, dow + 0.5], **kwargs),
+                go.Scatter(y=[wkn - 0.5, wkn - 0.5], x=[dow + 0.5, 6.5], **kwargs),
+            ]
+    else:
+        cplt += [go.Scatter(x=[wkn + 0.5, wkn + 0.5], y=[-0.5, dow + 0.5], **kwargs)]
+        if dow != 6:
+            cplt += [
+                go.Scatter(x=[wkn - 0.5, wkn + 0.5], y=[dow + 0.5, dow + 0.5], **kwargs),
+                go.Scatter(x=[wkn - 0.5, wkn - 0.5], y=[dow + 0.5, 6.5], **kwargs),
+            ]
+
+    return cplt
+
+
+def create_top_bottom_lines(
+    cplt: List[go.Figure],
+    month_lines_color: str,
+    month_lines_width: int,
+    weeknumber_of_dates: List[int],
+    vertical: bool = False,
+) -> List[go.Figure]:
+    """Draw horizontal lines at the top and bottom edges of the calendar."""
+    kwargs = dict(
+        mode="lines",
+        line=dict(color=month_lines_color, width=month_lines_width),
+        hoverinfo="skip",
+    )
+    wk_min = min(weeknumber_of_dates)
+    wk_max = max(weeknumber_of_dates)
+    if vertical:
+        # top line (left edge of days)
+        cplt += [go.Scatter(y=[wk_min + 0.5, wk_max + 0.5], x=[-0.5, -0.5], **kwargs)]
+        # bottom line (right edge of days)
+        cplt += [go.Scatter(y=[wk_min - 0.5, wk_max - 0.5], x=[6.5, 6.5], **kwargs)]
+    else:
+        # top line
+        cplt += [go.Scatter(x=[wk_min + 0.5, wk_max + 0.5], y=[-0.5, -0.5], **kwargs)]
+        # bottom line
+        cplt += [go.Scatter(x=[wk_min - 0.5, wk_max - 0.5], y=[6.5, 6.5], **kwargs)]
+    return cplt
+
+
+def create_grouping_lines(
+    cplt: List[go.Figure],
+    grouping_lines_color: str,
+    grouping_lines_width: int,
+    data: pd.DataFrame,
+    weekdays_in_year: List[float],
+    weeknumber_of_dates: List[int],
+    boundary_months: List[int],
+    vertical: bool = False,
+    month_gap: int = 0,
+) -> List[go.Figure]:
+    """Draw thicker separator lines at group boundaries (quarters, semesters, etc.).
+
+    Uses the same drawing logic as create_month_lines but only at months
+    listed in *boundary_months*.
+    """
+    kwargs = dict(
+        mode="lines",
+        line=dict(color=grouping_lines_color, width=grouping_lines_width),
+        hoverinfo="skip",
+    )
+    for date, dow, wkn in zip(data, weekdays_in_year, weeknumber_of_dates):
+        if date.day == 1 and date.month in boundary_months:
+            if month_gap > 0:
+                if vertical:
+                    cplt += [go.Scatter(y=[wkn - 0.5, wkn - 0.5], x=[-0.5, 6.5], **kwargs)]
+                else:
+                    cplt += [go.Scatter(x=[wkn - 0.5, wkn - 0.5], y=[-0.5, 6.5], **kwargs)]
+            elif vertical:
+                cplt += [go.Scatter(y=[wkn - 0.5, wkn - 0.5], x=[dow - 0.5, 6.5], **kwargs)]
+                if dow:
+                    cplt += [
+                        go.Scatter(
+                            y=[wkn - 0.5, wkn + 0.5], x=[dow - 0.5, dow - 0.5], **kwargs
+                        ),
+                        go.Scatter(y=[wkn + 0.5, wkn + 0.5], x=[dow - 0.5, -0.5], **kwargs),
+                    ]
+            else:
+                cplt += [go.Scatter(x=[wkn - 0.5, wkn - 0.5], y=[dow - 0.5, 6.5], **kwargs)]
+                if dow:
+                    cplt += [
+                        go.Scatter(
+                            x=[wkn - 0.5, wkn + 0.5], y=[dow - 0.5, dow - 0.5], **kwargs
+                        ),
+                        go.Scatter(x=[wkn + 0.5, wkn + 0.5], y=[dow - 0.5, -0.5], **kwargs),
+                    ]
+
+    # Close the end of the last group
+    date = data.iloc[-1]
+    dow = weekdays_in_year[-1]
+    wkn = weeknumber_of_dates[-1]
+    if vertical:
+        cplt += [go.Scatter(y=[wkn + 0.5, wkn + 0.5], x=[-0.5, dow + 0.5], **kwargs)]
+        if dow != 6:
+            cplt += [
+                go.Scatter(y=[wkn - 0.5, wkn + 0.5], x=[dow + 0.5, dow + 0.5], **kwargs),
+                go.Scatter(y=[wkn - 0.5, wkn - 0.5], x=[dow + 0.5, 6.5], **kwargs),
+            ]
+    else:
+        cplt += [go.Scatter(x=[wkn + 0.5, wkn + 0.5], y=[-0.5, dow + 0.5], **kwargs)]
+        if dow != 6:
+            cplt += [
+                go.Scatter(x=[wkn - 0.5, wkn + 0.5], y=[dow + 0.5, dow + 0.5], **kwargs),
+                go.Scatter(x=[wkn - 0.5, wkn - 0.5], y=[dow + 0.5, 6.5], **kwargs),
+            ]
+
     return cplt
 
 

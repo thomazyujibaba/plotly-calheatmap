@@ -42,21 +42,21 @@ class TestCalplot(TestCase):
 
     def test_should_create_one_year_only(self) -> None:
         cp = calheatmap(self.one_year_sample_dataframe, "ds", "value")
-        self.assertTrue(len(cp.data) == 36)
+        self.assertTrue(len(cp.data) == 39)
         self.assertTrue(type(cp.data) == tuple)
         self.assertTrue(type(cp) == go.Figure)
 
     def test_should_create_multi_year(self) -> None:
         cp = calheatmap(self.multi_year_sample_dataframe, "ds", "value")
 
-        self.assertTrue(len(cp.data) == 236)
+        self.assertTrue(len(cp.data) == 255)
         self.assertTrue(type(cp.data) == tuple)
         self.assertTrue(type(cp) == go.Figure)
 
     def test_should_create_black_theme_multi_year(self) -> None:
         cp = calheatmap(self.multi_year_sample_dataframe, "ds", "value", dark_theme=True)
 
-        self.assertTrue(len(cp.data) == 236)
+        self.assertTrue(len(cp.data) == 255)
         self.assertTrue(type(cp.data) == tuple)
         self.assertTrue(type(cp) == go.Figure)
         self.assertTrue(cp.layout["paper_bgcolor"] == "#333")
@@ -64,6 +64,6 @@ class TestCalplot(TestCase):
     def test_should_create_with_years_title(self) -> None:
         cp = calheatmap(self.multi_year_sample_dataframe, "ds", "value", years_title=True)
 
-        self.assertTrue(len(cp.data) == 236)
+        self.assertTrue(len(cp.data) == 255)
         self.assertTrue(type(cp.data) == tuple)
         self.assertTrue(type(cp) == go.Figure)

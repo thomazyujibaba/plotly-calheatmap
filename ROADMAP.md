@@ -1,12 +1,6 @@
 # Roadmap
 
-## v0.2
-
-- [ ] **Vertical orientation** — Render months as rows instead of columns for a different layout style.
-- [ ] **Built-in aggregation functions** — Allow `agg="sum"|"mean"|"count"|"max"` so users can pass raw event data without pre-aggregating.
-- [ ] **Hourly heatmap**
-
-## v0.3
+## v0.4
 
 - [ ] **Custom week start day** — Let users choose Sunday or Monday as the first day of the week (`week_start="sunday"`).
 - [ ] **ISO week numbering** — Option to use ISO 8601 weeks instead of the current `strftime("%W")` Gregorian weeks.
@@ -14,4 +8,8 @@
 - [ ] **Cell annotations** — Display text (values, labels, emojis) inside each cell via an `annotations=True` or `annotations_fmt=".0f"` parameter.
 - [ ] **Highlight specific dates** — An API to mark/outline holidays, deadlines, or special dates with borders or markers.
 - [ ] **Responsive / auto-sizing** — Better auto-width/height that adapts to container size in notebooks and web apps.
-- [ ] **Custom time groupings** — Option to group by semesters, quarters, bimesters, and other periods instead of only months.
+- [ ] **Click / selection callbacks** — Expose click and lasso-select events so users can react to date selections in Dash or Jupyter.
+- [ ] **Gap / missing-data styling** — Distinct styling for days with no data vs. days with zero values (e.g., hatched pattern or a configurable `nan_color`).
+- [ ] **Export helpers** — Convenience methods to export the calendar as static PNG/SVG/PDF with sensible default dimensions.
+- [ ] **Hourly heatmap enhancements** — Add day-of-week labels, custom time bins, and gap highlighting to `hourly_calheatmap`.
+- [ ] **Legend / colorbar customization** — More control over colorbar position, orientation, tick format, and title.

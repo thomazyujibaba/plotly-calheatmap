@@ -3,9 +3,16 @@ from typing import List, Optional, Union
 from pandas.core.frame import DataFrame
 from plotly import graph_objects as go
 
-from plotly_calheatmap.date_extractors import get_date_coordinates, get_month_names
+from plotly_calheatmap.date_extractors import (
+    GROUPINGS,
+    get_date_coordinates,
+    get_group_names_and_positions,
+    get_month_names,
+)
 from plotly_calheatmap.layout_formatter import (
+    create_grouping_lines,
     create_month_lines,
+    create_top_bottom_lines,
     decide_layout,
     update_plot_with_current_layout,
 )
@@ -23,6 +30,7 @@ def year_calheatmap(
     dark_theme: bool = False,
     month_lines_width: int = 1,
     month_lines_color: str = "#9e9e9e",
+    top_bottom_lines: bool = False,
     gap: int = 1,
     colorscale: Union[str, list] = "greens",
     title: str = "",
@@ -47,6 +55,10 @@ def year_calheatmap(
     extra_customdata_columns: Optional[List[str]] = None,
     vertical: bool = False,
     month_gap: int = 0,
+    grouping: Optional[str] = None,
+    grouping_lines_width: int = 2,
+    grouping_lines_color: Optional[str] = None,
+    log_scale: bool = False,
 ) -> go.Figure:
     """
     Each year is subplotted separately and added to the main plot
@@ -74,6 +86,7 @@ def year_calheatmap(
         extra_customdata_columns=extra_customdata_columns,
         vertical=vertical,
         gap_positions=gap_positions,
+        log_scale=log_scale,
     )
 
     if month_lines:
@@ -86,6 +99,32 @@ def year_calheatmap(
             weeknumber_of_dates,
             vertical=vertical,
             month_gap=month_gap,
+        )
+
+    if top_bottom_lines:
+        cplt = create_top_bottom_lines(
+            cplt,
+            month_lines_color,
+            month_lines_width,
+            weeknumber_of_dates,
+            vertical=vertical,
+        )
+
+    if grouping is not None and grouping != "month":
+        cplt = create_grouping_lines(
+            cplt,
+            grouping_lines_color or month_lines_color,
+            grouping_lines_width,
+            data[x],
+            weekdays_in_year,
+            weeknumber_of_dates,
+            boundary_months=GROUPINGS[grouping]["boundaries"],
+            vertical=vertical,
+            month_gap=month_gap,
+        )
+        # Replace tick labels with group labels
+        month_names, month_positions = get_group_names_and_positions(
+            data, x, grouping, weeknumber_of_dates,
         )
 
     layout = decide_layout(

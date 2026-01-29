@@ -24,6 +24,7 @@ fig1 = calheatmap(
     y="value",
     showscale="Temperature (°C)",
     scale_ticks=True,
+    top_bottom_lines=True,
 )
 
 fig1.show()

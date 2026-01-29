@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from .i18n import get_localized_month_names
+from .calheatmap import _prepare_dataset_configs
 from .layout_formatter import apply_general_colorscaling
 from .utils import validate_date_column
 
@@ -141,6 +142,8 @@ def hourly_calheatmap(
     margin: Optional[dict] = None,
     hovertemplate: Optional[str] = None,
     name: str = "",
+    datasets: Optional[Dict[str, Dict[str, Any]]] = None,
+    dataset_nav_options: Optional[Dict[str, Any]] = None,
 ) -> go.Figure:
     """Create an hourly heatmap with subplots per month.
 
@@ -200,6 +203,10 @@ def hourly_calheatmap(
         Custom hover template. Supports Plotly format with %{x}, %{y}, %{z}.
     name : str
         Name for the metric (used in default hover).
+    datasets : dict, optional
+        Multiple datasets to swap via dropdown. Same format as ``calheatmap()``.
+    dataset_nav_options : dict, optional
+        Styling overrides for the dataset dropdown menu.
 
     Returns
     -------
@@ -231,6 +238,11 @@ def hourly_calheatmap(
     ) + "Day %{x}, Hour %{y}:00<br>%{z}<extra></extra>"
     hover = hovertemplate or default_hover
 
+    dataset_configs = _prepare_dataset_configs(
+        datasets, y, colorscale, showscale, cmap_min, cmap_max, name
+    )
+    use_dataset_swap = len(dataset_configs) > 1
+
     if navigation and len(years) > 1:
         return _build_with_navigation(
             df, x, y, years, agg, cols, month_names, colorscale, gap, hover,
@@ -238,6 +250,21 @@ def hourly_calheatmap(
             showscale, scale_ticks, cmap_min, cmap_max, name,
             paper_bgcolor, plot_bgcolor, font_size,
             title_font_color, title_font_size, margin,
+            dataset_configs=dataset_configs,
+            dataset_nav_options=dataset_nav_options,
+        )
+
+    if use_dataset_swap:
+        # Dataset swap without year navigation: use navigation builder
+        # with navigation menus but single-year-at-a-time approach
+        return _build_with_navigation(
+            df, x, y, years, agg, cols, month_names, colorscale, gap, hover,
+            font_color, nav_options, title, total_height, total_width,
+            showscale, scale_ticks, cmap_min, cmap_max, name,
+            paper_bgcolor, plot_bgcolor, font_size,
+            title_font_color, title_font_size, margin,
+            dataset_configs=dataset_configs,
+            dataset_nav_options=dataset_nav_options,
         )
 
     return _build_all_years(
@@ -369,13 +396,24 @@ def _build_with_navigation(
     showscale, scale_ticks, cmap_min, cmap_max, name,
     paper_bgcolor, plot_bgcolor, font_size,
     title_font_color, title_font_size, margin,
+    dataset_configs=None,
+    dataset_nav_options=None,
 ):
-    """Build figure with year navigation buttons (one year visible at a time)."""
-    # Use the first year to determine the grid layout
-    first_year_data = df[df["year"] == years[0]]
-    months_first = sorted(first_year_data["month"].unique())
+    """Build figure with year navigation buttons (one year visible at a time).
+
+    When *dataset_configs* contains more than one entry a dataset dropdown is
+    also added.
+    """
+    if dataset_configs is None:
+        dataset_configs = {name: {"y": y, "colorscale": colorscale,
+                                   "showscale": showscale, "cmap_min": cmap_min,
+                                   "cmap_max": cmap_max, "name": name}}
+
+    use_dataset_swap = len(dataset_configs) > 1
+    use_navigation = len(years) > 1
+
     n_cols = min(cols, 12)
-    n_rows_per_year = -(-12 // n_cols)  # Always reserve 12 month slots
+    n_rows_per_year = -(-12 // n_cols)
 
     subplot_titles = [month_names[m - 1] for m in range(1, 13)]
     while len(subplot_titles) < n_rows_per_year * n_cols:
@@ -389,49 +427,87 @@ def _build_with_navigation(
         vertical_spacing=0.08,
     )
 
-    trace_counts = []
+    trace_structure: List[Dict[str, Any]] = []
+    trace_counts: list = []  # legacy, for single-dataset path
 
-    for yr in years:
-        year_data = df[df["year"] == yr]
-        count = 0
+    for ds_label, ds_cfg in dataset_configs.items():
+        ds_y = ds_cfg["y"]
+        ds_colorscale = ds_cfg["colorscale"]
+        ds_cmap_min = ds_cfg["cmap_min"]
+        ds_cmap_max = ds_cfg["cmap_max"]
 
-        for m in range(1, 13):
-            row = (m - 1) // n_cols + 1
-            col = (m - 1) % n_cols + 1
+        if ds_cmap_min is None:
+            ds_cmap_min = df[ds_y].min() if ds_y in df.columns else 0
+        if ds_cmap_max is None:
+            ds_cmap_max = df[ds_y].max() if ds_y in df.columns else 1
 
-            month_data = year_data[year_data["month"] == m]
-            z, hours, days = _build_hourly_matrix(month_data, y, agg, yr, m)
+        ds_name = ds_cfg["name"]
+        ds_hover = hover
+        if ds_name and not hover.startswith(f"<b>{ds_name}"):
+            ds_hover = (f"<b>{ds_name}</b><br>" if ds_name else "") + "Day %{x}, Hour %{y}:00<br>%{z}<extra></extra>"
 
-            fig.add_trace(
-                go.Heatmap(
-                    x=days,
-                    y=hours,
-                    z=z,
-                    colorscale=colorscale,
-                    xgap=gap,
-                    ygap=gap,
-                    showscale=False,
-                    hovertemplate=hover,
-                ),
-                row=row,
-                col=col,
+        dataset_trace_counts: list = []
+
+        for yr in years:
+            traces_before = len(fig.data)
+            year_data = df[df["year"] == yr]
+
+            for m in range(1, 13):
+                row = (m - 1) // n_cols + 1
+                col = (m - 1) % n_cols + 1
+                month_data = year_data[year_data["month"] == m]
+                z, hours, days = _build_hourly_matrix(month_data, ds_y, agg, yr, m)
+
+                fig.add_trace(
+                    go.Heatmap(
+                        x=days, y=hours, z=z,
+                        colorscale=ds_colorscale,
+                        xgap=gap, ygap=gap,
+                        showscale=False,
+                        hovertemplate=ds_hover,
+                        zmin=ds_cmap_min,
+                        zmax=ds_cmap_max,
+                    ),
+                    row=row, col=col,
+                )
+
+            tc = len(fig.data) - traces_before
+            dataset_trace_counts.append(tc)
+            trace_structure.append({
+                "dataset": ds_label, "year": yr,
+                "start": traces_before, "count": tc,
+            })
+
+        # Show colorbar for this dataset
+        ds_showscale = ds_cfg["showscale"]
+        if ds_showscale:
+            scale_label = ds_showscale if isinstance(ds_showscale, str) else ""
+            ds_start = trace_structure[-len(years)]["start"]
+            colorbar = dict(
+                orientation="v", yanchor="middle", y=0.5,
+                xanchor="left", x=1.02, thickness=15, len=0.5,
+                title=dict(text=scale_label, side="top"), nticks=5,
             )
-            count += 1
+            if scale_ticks is not None:
+                colorbar["tickvals"] = scale_ticks
+            # Enable on first trace of each year for this dataset
+            for t in trace_structure:
+                if t["dataset"] == ds_label:
+                    fig.data[t["start"]].showscale = True
+                    fig.data[t["start"]].colorbar = colorbar
 
-        trace_counts.append(count)
+        if not use_dataset_swap:
+            trace_counts = dataset_trace_counts
 
-    # Configure axes (shared across all years since same grid)
+    # Configure axes
     for m in range(1, 13):
         row = (m - 1) // n_cols + 1
         col = (m - 1) % n_cols + 1
         axis_num = (row - 1) * n_cols + col
         axis_suffix = "" if axis_num == 1 else str(axis_num)
-
-        days_in_month = 31  # max possible
         is_bottom = (row == n_rows_per_year)
         fig.layout[f"xaxis{axis_suffix}"].update(
-            tickvals=[1, 10, 20, 31],
-            showticklabels=is_bottom,
+            tickvals=[1, 10, 20, 31], showticklabels=is_bottom,
         )
         fig.layout[f"yaxis{axis_suffix}"].update(
             autorange="reversed",
@@ -440,52 +516,99 @@ def _build_with_navigation(
             showticklabels=(col == 1),
         )
 
-    # Build navigation buttons
+    # Build menus
     total_traces = len(fig.data)
-    offsets = []
-    acc = 0
-    for count in trace_counts:
-        offsets.append(acc)
-        acc += count
+    first_dataset = list(dataset_configs.keys())[0]
+    first_year = years[0]
 
-    # Hide all traces except first year
-    for i in range(trace_counts[0], total_traces):
-        fig.data[i].visible = False
+    if use_dataset_swap:
+        # Set initial visibility
+        for t in trace_structure:
+            is_visible = t["dataset"] == first_dataset and (
+                t["year"] == first_year if use_navigation else True
+            )
+            for i in range(t["start"], t["start"] + t["count"]):
+                fig.data[i].visible = is_visible
 
-    buttons = []
-    for idx, year in enumerate(years):
-        visibility = [False] * total_traces
-        start = offsets[idx]
-        end = start + trace_counts[idx]
-        for j in range(start, end):
-            visibility[j] = True
-        buttons.append(dict(
-            method="restyle",
-            args=[{"visible": visibility}],
-            label=str(year),
-        ))
+        menus = []
 
-    menu_config = dict(
-        type="buttons",
-        direction="right",
-        active=0,
-        buttons=buttons,
-        x=0.5,
-        xanchor="center",
-        y=1.12,
-        yanchor="top",
-        showactive=True,
-    )
-    if nav_options:
-        menu_config.update(nav_options)
+        # Dataset dropdown
+        ds_buttons = []
+        for ds_label in dataset_configs:
+            vis = [False] * total_traces
+            for t in trace_structure:
+                if t["dataset"] != ds_label:
+                    continue
+                if use_navigation and t["year"] != first_year:
+                    continue
+                for i in range(t["start"], t["start"] + t["count"]):
+                    vis[i] = True
+            ds_buttons.append(dict(method="update", args=[{"visible": vis}], label=ds_label))
 
-    fig.update_layout(updatemenus=[menu_config])
+        ds_menu = dict(
+            type="dropdown", direction="down", active=0,
+            buttons=ds_buttons, x=0, xanchor="left",
+            y=1.0, yanchor="bottom", showactive=True,
+        )
+        if dataset_nav_options:
+            ds_menu.update(dataset_nav_options)
+        menus.append(ds_menu)
 
-    if cmap_min is not None and cmap_max is not None:
-        apply_general_colorscaling(fig, cmap_min, cmap_max)
+        # Year navigation
+        if use_navigation:
+            yr_buttons = []
+            for yr in years:
+                vis = [False] * total_traces
+                for t in trace_structure:
+                    if t["dataset"] == first_dataset and t["year"] == yr:
+                        for i in range(t["start"], t["start"] + t["count"]):
+                            vis[i] = True
+                yr_buttons.append(dict(method="restyle", args=[{"visible": vis}], label=str(yr)))
 
-    if showscale:
-        _apply_colorbar(fig, name, scale_ticks, trace_offsets=offsets)
+            yr_menu = dict(
+                type="buttons", direction="right", active=0,
+                buttons=yr_buttons, x=0.5, xanchor="center",
+                y=1.12, yanchor="top", showactive=True,
+            )
+            if nav_options:
+                yr_menu.update(nav_options)
+            menus.append(yr_menu)
+
+        fig.update_layout(updatemenus=menus)
+    else:
+        # Single dataset with year navigation (original behavior)
+        offsets = []
+        acc = 0
+        for count in trace_counts:
+            offsets.append(acc)
+            acc += count
+
+        for i in range(trace_counts[0], total_traces):
+            fig.data[i].visible = False
+
+        buttons = []
+        for idx, year in enumerate(years):
+            visibility = [False] * total_traces
+            start = offsets[idx]
+            end = start + trace_counts[idx]
+            for j in range(start, end):
+                visibility[j] = True
+            buttons.append(dict(method="restyle", args=[{"visible": visibility}], label=str(year)))
+
+        menu_config = dict(
+            type="buttons", direction="right", active=0,
+            buttons=buttons, x=0.5, xanchor="center",
+            y=1.12, yanchor="top", showactive=True,
+        )
+        if nav_options:
+            menu_config.update(nav_options)
+        fig.update_layout(updatemenus=[menu_config])
+
+        if cmap_min is not None and cmap_max is not None:
+            apply_general_colorscaling(fig, cmap_min, cmap_max)
+
+        if showscale:
+            _apply_colorbar(fig, name, scale_ticks, trace_offsets=offsets)
 
     if total_height is None:
         total_height = max(400, n_rows_per_year * 200)
@@ -495,10 +618,7 @@ def _build_with_navigation(
     fig.update_layout(
         title=dict(
             text=title,
-            font=dict(
-                color=title_font_color or font_color,
-                size=title_font_size or 16,
-            ),
+            font=dict(color=title_font_color or font_color, size=title_font_size or 16),
         ),
         paper_bgcolor=paper_bgcolor,
         plot_bgcolor=plot_bgcolor,
