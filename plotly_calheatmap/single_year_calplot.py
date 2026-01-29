@@ -24,7 +24,7 @@ def year_calplot(
     month_lines_width: int = 1,
     month_lines_color: str = "#9e9e9e",
     gap: int = 1,
-    colorscale: str = "greens",
+    colorscale: Union[str, list] = "greens",
     title: str = "",
     month_lines: bool = True,
     total_height: Union[int, None] = None,
@@ -34,6 +34,17 @@ def year_calplot(
     start_month: int = 1,
     end_month: int = 12,
     locale: Optional[str] = None,
+    paper_bgcolor: Optional[str] = None,
+    plot_bgcolor: Optional[str] = None,
+    font_color: Optional[str] = None,
+    font_size: Optional[int] = None,
+    title_font_color: Optional[str] = None,
+    title_font_size: Optional[int] = None,
+    width: Optional[int] = None,
+    margin: Optional[dict] = None,
+    month_labels_side: str = "bottom",
+    hovertemplate: Optional[str] = None,
+    extra_customdata_columns: Optional[List[str]] = None,
 ) -> go.Figure:
     """
     Each year is subplotted separately and added to the main plot
@@ -57,6 +68,8 @@ def year_calplot(
         name,
         text=text,
         text_name=text_name,
+        hovertemplate=hovertemplate,
+        extra_customdata_columns=extra_customdata_columns,
     )
 
     if month_lines:
@@ -69,9 +82,23 @@ def year_calplot(
             weeknumber_of_dates,
         )
 
-    layout = decide_layout(dark_theme, title, month_names, month_positions, locale=locale)
+    layout = decide_layout(
+        dark_theme,
+        title,
+        month_names,
+        month_positions,
+        locale=locale,
+        paper_bgcolor=paper_bgcolor,
+        plot_bgcolor=plot_bgcolor,
+        font_color=font_color,
+        font_size=font_size,
+        title_font_color=title_font_color,
+        title_font_size=title_font_size,
+        margin=margin,
+        month_labels_side=month_labels_side,
+    )
     fig = update_plot_with_current_layout(
-        fig, cplt, row, layout, total_height, years_as_columns
+        fig, cplt, row, layout, total_height, years_as_columns, width=width
     )
 
     return fig

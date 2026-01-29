@@ -4,14 +4,21 @@ A continuation of [plotly-calplot](https://github.com/brunorosilva/plotly-calplo
 
 This project picks up where plotly-calplot left off, providing an interactive calendar heatmap built with Plotly — similar to the contribution graphs on GitHub and GitLab profile pages.
 
-## Original Description
+## Features
 
-Making it easier to visualize and customize time-relevant or time-series data with Plotly interaction.
+- Interactive calendar heatmaps built with Plotly
+- Multi-year support with independent tick configurations per subplot
+- Localization support (`locale` parameter) for month and day names (e.g. `pt_BR`, `es`, `fr`)
+- Customizable hovertemplate with friendly `{placeholder}` syntax and `customdata` columns
+- Fully customizable colorscales
+- Year navigation buttons (`navigation=True`)
+- Month separator lines, configurable month label placement, and color scale with label/ticks
+- Flexible layout options: `gap`, `margin`, `font_*`, `paper_bgcolor`, `plot_bgcolor`, etc.
 
 ## Installation
 
 ```bash
-pip install plotly-calplot
+pip install plotly-calheatmap
 ```
 
 ## Quick Start

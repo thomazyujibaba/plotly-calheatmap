@@ -1,5 +1,4 @@
-from datetime import date
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, List
 
 import numpy as np
 from pandas import DataFrame, Grouper, Series
@@ -26,6 +25,11 @@ def _get_subplot_layout(**kwargs: Any) -> go.Layout:
     def _dt(b: Any, a: Any) -> Any:
         return a if dark_theme else b
 
+    # Build font with defaults, allow override
+    font = {"size": 10, "color": _dt("#9e9e9e", "#fff")}
+    if "font" in kwargs:
+        font.update(kwargs.pop("font"))
+
     return go.Layout(
         **{
             "yaxis": {
@@ -43,7 +47,7 @@ def _get_subplot_layout(**kwargs: Any) -> go.Layout:
                 "tickmode": "array",
                 **xaxis,
             },
-            "font": {"size": 10, "color": _dt("#9e9e9e", "#fff")},
+            "font": font,
             "plot_bgcolor": _dt("#fff", "#333"),
             "paper_bgcolor": _dt(None, "#333"),
             "margin": {"t": 20, "b": 20},
@@ -51,6 +55,74 @@ def _get_subplot_layout(**kwargs: Any) -> go.Layout:
             **kwargs,
         }
     )
+
+
+def _add_year_navigation(
+    fig: go.Figure,
+    unique_years: Any,
+    trace_counts: list,
+    nav_options: Optional[Dict[str, Any]] = None,
+) -> go.Figure:
+    """Add year buttons on the right side of the chart.
+
+    Parameters
+    ----------
+    nav_options : dict, optional
+        Styling overrides for the button group. Supports any key accepted by
+        Plotly's ``updatemenus`` (e.g. ``font``, ``bgcolor``, ``bordercolor``,
+        ``borderwidth``, ``x``, ``y``, ``xanchor``, ``yanchor``, ``direction``,
+        ``pad``).
+    """
+    total_traces = len(fig.data)
+
+    # Build cumulative trace offsets
+    offsets = []
+    acc = 0
+    for count in trace_counts:
+        offsets.append(acc)
+        acc += count
+
+    # Hide all traces except the first year
+    for i in range(trace_counts[0], total_traces):
+        fig.data[i].visible = False
+
+    # Build visibility arrays per year
+    visibility_per_year = []
+    for idx in range(len(unique_years)):
+        visibility = [False] * total_traces
+        start = offsets[idx]
+        end = start + trace_counts[idx]
+        for j in range(start, end):
+            visibility[j] = True
+        visibility_per_year.append(visibility)
+
+    buttons = []
+    for idx, year in enumerate(unique_years):
+        buttons.append(
+            dict(
+                method="restyle",
+                args=[{"visible": visibility_per_year[idx]}],
+                label=str(year),
+            )
+        )
+
+    menu_config = dict(
+        type="buttons",
+        direction="down",
+        active=0,
+        buttons=buttons,
+        x=1.02,
+        xanchor="left",
+        y=1,
+        yanchor="top",
+        showactive=True,
+    )
+    if nav_options:
+        menu_config.update(nav_options)
+
+    fig.update_layout(updatemenus=[menu_config])
+
+    return fig
 
 
 def calplot(
@@ -63,12 +135,13 @@ def calplot(
     month_lines_color: str = "#9e9e9e",
     gap: int = 1,
     years_title: bool = False,
-    colorscale: str = "greens",
+    colorscale: Union[str, list] = "greens",
     title: str = "",
     month_lines: bool = True,
     total_height: Union[int, None] = None,
     space_between_plots: float = 0.08,
-    showscale: bool = False,
+    showscale: Union[bool, str] = False,
+    scale_ticks: bool = False,
     text: Optional[str] = None,
     years_as_columns: bool = False,
     cmap_min: Optional[float] = None,
@@ -77,6 +150,19 @@ def calplot(
     end_month: int = 12,
     date_fmt: str = "%Y-%m-%d",
     locale: Optional[str] = None,
+    paper_bgcolor: Optional[str] = None,
+    plot_bgcolor: Optional[str] = None,
+    font_color: Optional[str] = None,
+    font_size: Optional[int] = None,
+    title_font_color: Optional[str] = None,
+    title_font_size: Optional[int] = None,
+    width: Optional[int] = None,
+    margin: Optional[dict] = None,
+    month_labels_side: str = "bottom",
+    navigation: bool = False,
+    nav_options: Optional[Dict[str, Any]] = None,
+    hovertemplate: Optional[str] = None,
+    customdata: Optional[List[str]] = None,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap
@@ -115,10 +201,10 @@ def calplot(
         if true will add a title for each subplot with the
         correspondent year
 
-    colorscale : str = "greens"
+    colorscale : str | list = "greens"
         controls the colorscale for the calendar, works
         with all the standard Plotly Colorscales and also
-        supports custom colorscales made by the user
+        supports custom colorscales (e.g. [[0, "#eee"], [1, "#333"]])
 
     title : str = ""
         title of the plot
@@ -131,9 +217,9 @@ def calplot(
     space_between_plots : float = 0.08
         controls the vertical space between the plots
 
-    showscale : bool = False
-        if True, a color legend will be created.
-        Thanks to @ghhar98!
+    showscale : bool | str = False
+        if True or a string, a horizontal color legend will be shown.
+        Pass a string (e.g. "Temperature") to display a title on the legend.
 
     text : Optional[str] = None
         The name of the column in data to include in hovertext.
@@ -157,17 +243,77 @@ def calplot(
         date format for the date column in data, defaults to "%Y-%m-%d"
         If the date column is already in datetime format, this parameter
         will be ignored.
+
+    paper_bgcolor : str = None
+        override paper background color (e.g. "#0d1117")
+
+    plot_bgcolor : str = None
+        override plot background color (e.g. "#0d1117")
+
+    font_color : str = None
+        override font color (e.g. "#8b949e")
+
+    font_size : int = None
+        override font size (e.g. 11)
+
+    title_font_color : str = None
+        override title font color (e.g. "#c9d1d9")
+
+    title_font_size : int = None
+        override title font size (e.g. 14)
+
+    width : int = None
+        figure width in pixels
+
+    margin : dict = None
+        custom margins dict, e.g. {"l": 40, "r": 20, "t": 40, "b": 20}
+
+    month_labels_side : str = "bottom"
+        position of month labels on x-axis: "top" or "bottom"
+
+    navigation : bool = False
+        if True and there are multiple years, shows one year at a time
+        with year buttons on the right (GitHub-style)
+
+    nav_options : dict = None
+        styling overrides for the navigation buttons. Supports any key
+        accepted by Plotly's updatemenus (e.g. font, bgcolor, bordercolor,
+        borderwidth, x, y, xanchor, yanchor, direction, pad)
+
+    hovertemplate : str = None
+        custom hover template string. Supports friendly {placeholder}
+        syntax that gets resolved automatically:
+            {date}             -> the date value
+            {date:%d/%m/%Y}    -> the date with custom strftime format
+            {name}             -> the metric name
+            {value}            -> the cell value (z)
+            {week}             -> the week number
+            {text}             -> the text column value
+            {col}              -> any column name from the `customdata` list
+        Raw Plotly syntax (%{z}, %{customdata[0]}, etc.) also works.
+        Example: "<b>{date:%d/%m/%Y}</b><br>{value} commits · {repo}"
+
+    customdata : list[str] = None
+        list of column names from `data` to include as extra customdata.
+        These become available as {column_name} in hovertemplate.
     """
     data[x] = validate_date_column(data[x], date_fmt)
     unique_years = data[x].dt.year.unique()
     unique_years_amount = len(unique_years)
+
+    # navigation only makes sense with multiple years
+    use_navigation = navigation and unique_years_amount > 1
+
     if years_title:
         subplot_titles = unique_years.astype(str)
     else:
         subplot_titles = None
 
-    # single row calplot logic
-    if years_as_columns:
+    if use_navigation:
+        rows = 1
+        cols = 1
+        subplot_titles = None
+    elif years_as_columns:
         rows = 1
         cols = unique_years_amount
     else:
@@ -176,7 +322,7 @@ def calplot(
 
     # if single row calplot, the height can be constant
     if total_height is None:
-        if years_as_columns:
+        if use_navigation or years_as_columns:
             total_height = 150
         else:
             total_height = 150 * unique_years_amount
@@ -199,7 +345,12 @@ def calplot(
         data[x].dt.month.isin(np.arange(start_month, end_month + 1, 1).tolist())
     ]
 
+    # Track trace counts per year for navigation
+    trace_counts = []
+
     for i, year in enumerate(unique_years):
+        traces_before = len(fig.data)
+
         selected_year_data = data.loc[data[x].dt.year == year]
         selected_year_data = fill_empty_with_zeros(
             selected_year_data, x, year, start_month, end_month
@@ -219,19 +370,39 @@ def calplot(
             dark_theme=dark_theme,
             gap=gap,
             title=title,
-            row=i,
+            row=0 if use_navigation else i,
             total_height=total_height,
             text=None if text is None else selected_year_data[text].tolist(),
             text_name=text,
-            years_as_columns=years_as_columns,
+            years_as_columns=years_as_columns if not use_navigation else False,
             start_month=start_month,
             end_month=end_month,
             locale=locale,
+            paper_bgcolor=paper_bgcolor,
+            plot_bgcolor=plot_bgcolor,
+            font_color=font_color,
+            font_size=font_size,
+            title_font_color=title_font_color,
+            title_font_size=title_font_size,
+            width=width,
+            margin=margin,
+            month_labels_side=month_labels_side,
+            hovertemplate=hovertemplate,
+            extra_customdata_columns=customdata,
         )
+
+        trace_counts.append(len(fig.data) - traces_before)
 
     fig = apply_general_colorscaling(fig, cmap_min, cmap_max)
     if showscale:
-        fig = showscale_of_heatmaps(fig)
+        scale_title = showscale if isinstance(showscale, str) else ""
+        tick_vals = np.linspace(cmap_min, cmap_max, 5).tolist() if scale_ticks else None
+        fig = showscale_of_heatmaps(fig, scale_title=scale_title, scale_ticks=tick_vals)
+
+    if use_navigation:
+        fig = _add_year_navigation(
+            fig, unique_years, trace_counts, nav_options=nav_options
+        )
 
     return fig
 
@@ -243,13 +414,22 @@ def month_calplot(
     name: str = "y",
     dark_theme: bool = False,
     gap: int = 2,
-    colorscale: str = "greens",
+    colorscale: Union[str, list] = "greens",
     title: str = "",
     year_height: int = 30,
     total_height: Union[int, None] = None,
-    showscale: bool = False,
+    showscale: Union[bool, str] = False,
+    scale_ticks: bool = False,
     date_fmt: str = "%Y-%m-%d",
     locale: Optional[str] = None,
+    paper_bgcolor: Optional[str] = None,
+    plot_bgcolor: Optional[str] = None,
+    font_color: Optional[str] = None,
+    font_size: Optional[int] = None,
+    title_font_color: Optional[str] = None,
+    title_font_size: Optional[int] = None,
+    width: Optional[int] = None,
+    margin: Optional[dict] = None,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap by months (12 cols per row)
@@ -273,10 +453,10 @@ def month_calplot(
     gap : int = 2
         controls the gap bewteen monthly squares
 
-    colorscale : str = "greens"
+    colorscale : str | list = "greens"
         controls the colorscale for the calendar, works
         with all the standard Plotly Colorscales and also
-        supports custom colorscales made by the user
+        supports custom colorscales (e.g. [[0, "#eee"], [1, "#333"]])
 
     title : str = ""
         title of the plot
@@ -289,13 +469,38 @@ def month_calplot(
         height, otherwise the total height will be calculated
         according to the amount of years in data
 
-    showscale : bool = False
-        wether to show the scale of the data
+    showscale : bool | str = False
+        if True or a string, a horizontal color legend will be shown.
+        Pass a string (e.g. "Temperature") to display a title on the legend.
 
     date_fmt : str = "%Y-%m-%d"
         date format for the date column in data, defaults to "%Y-%m-%d"
         If the date column is already in datetime format, this parameter
         will be ignored.
+
+    paper_bgcolor : str = None
+        override paper background color
+
+    plot_bgcolor : str = None
+        override plot background color
+
+    font_color : str = None
+        override font color
+
+    font_size : int = None
+        override font size
+
+    title_font_color : str = None
+        override title font color
+
+    title_font_size : int = None
+        override title font size
+
+    width : int = None
+        figure width in pixels
+
+    margin : dict = None
+        custom margins dict, e.g. {"l": 40, "r": 20, "t": 40, "b": 20}
     """
     if data is None:
         if not isinstance(x, Series):
@@ -318,10 +523,39 @@ def month_calplot(
     if total_height is None:
         total_height = 20 + max(10, year_height * unique_years_amount)
 
+    # Build styling overrides for _get_subplot_layout
+    extra_kwargs: Dict[str, Any] = {}
+    if paper_bgcolor is not None:
+        extra_kwargs["paper_bgcolor"] = paper_bgcolor
+    if plot_bgcolor is not None:
+        extra_kwargs["plot_bgcolor"] = plot_bgcolor
+    if width is not None:
+        extra_kwargs["width"] = width
+
+    font_overrides: Dict[str, Any] = {}
+    if font_color is not None:
+        font_overrides["color"] = font_color
+    if font_size is not None:
+        font_overrides["size"] = font_size
+    if font_overrides:
+        extra_kwargs["font"] = font_overrides
+
+    if margin is not None:
+        extra_kwargs["margin"] = margin
+
+    title_val: Any = title
+    if title and (title_font_color or title_font_size):
+        title_font: Dict[str, Any] = {}
+        if title_font_color:
+            title_font["color"] = title_font_color
+        if title_font_size:
+            title_font["size"] = title_font_size
+        title_val = dict(text=title, font=title_font)
+
     layout = _get_subplot_layout(
         dark_theme=dark_theme,
         height=total_height,
-        title=title,
+        title=title_val,
         yaxis={
             "tickvals": unique_years,
         },
@@ -330,10 +564,29 @@ def month_calplot(
             "ticktext": [n[:3] for n in get_localized_month_names(locale)],
             "tickangle": 45,
         },
+        **extra_kwargs,
     )
 
     # hovertext = _gen_hoverText(gData.index.month, gData.index.year, gData)
     hovertext = gData.apply(lambda x: f"{x: .0f}")
+
+    scale_title = showscale if isinstance(showscale, str) else ""
+    if showscale:
+        colorbar_config = dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.05,
+            xanchor="center",
+            x=0.5,
+            thickness=10,
+            len=0.5,
+            title=dict(text=scale_title, side="top"),
+        )
+        if scale_ticks:
+            zmin, zmax = gData.min(), gData.max()
+            colorbar_config["tickvals"] = np.linspace(zmin, zmax, 5).tolist()
+    else:
+        colorbar_config = None
 
     cplt = go.Heatmap(
         x=gData.index.month,
@@ -346,6 +599,7 @@ def month_calplot(
         colorscale=colorscale,
         hoverinfo="text",
         text=hovertext,
+        colorbar=colorbar_config,
     )
 
     fig = go.Figure(data=cplt, layout=layout)

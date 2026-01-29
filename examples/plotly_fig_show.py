@@ -22,6 +22,8 @@ fig1 = calplot(
     dummy_df,
     x="ds",
     y="value",
+    showscale="Temperature (°C)",
+    scale_ticks=True,
 )
 
 fig1.show()
