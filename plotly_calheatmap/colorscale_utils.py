@@ -333,3 +333,74 @@ def _apply_nan_color(
     new_scale[-1][0] = 1.0
 
     return new_scale, sentinel
+
+
+def extract_legend_bins(
+    scale_type: str,
+    colors: Optional[List[str]] = None,
+    data: Optional[np.ndarray] = None,
+    data_min: float = 0.0,
+    data_max: float = 1.0,
+    bins: Optional[List[Tuple[float, float, str]]] = None,
+) -> List[Tuple[float, float, str, str]]:
+    """Extract discrete bin definitions for use in a clickable legend.
+
+    Parameters
+    ----------
+    scale_type : str
+        One of ``"quantile"``, ``"quantize"``, or ``"categorical"``.
+    colors : list of str, optional
+        Colors used by quantile/quantize scales.
+    data : np.ndarray, optional
+        Raw data values (required for ``"quantile"``).
+    data_min, data_max : float
+        Data range boundaries.
+    bins : list of (float, float, str), optional
+        Categorical bin definitions (required for ``"categorical"``).
+
+    Returns
+    -------
+    list of (float, float, str, str)
+        Each tuple is ``(min_val, max_val, color, label)``.
+    """
+    if scale_type == "categorical":
+        if not bins:
+            raise ValueError("scale_type='categorical' requires the bins parameter.")
+        sorted_bins = sorted(bins, key=lambda b: b[0])
+        return [
+            (lo, hi, color, f"{lo:g} – {hi:g}")
+            for lo, hi, color in sorted_bins
+        ]
+
+    if colors is None or len(colors) < 2:
+        raise ValueError("At least 2 colors are required for legend bins.")
+
+    n = len(colors)
+
+    if scale_type == "quantile":
+        if data is None:
+            raise ValueError("scale_type='quantile' requires data.")
+        clean = data[~np.isnan(data)]
+        if len(clean) == 0:
+            edges = np.linspace(data_min, data_max, n + 1)
+        else:
+            edges = np.quantile(clean, np.linspace(0.0, 1.0, n + 1))
+        result = []
+        for i in range(n):
+            lo, hi = float(edges[i]), float(edges[i + 1])
+            result.append((lo, hi, colors[i], f"{lo:g} – {hi:g}"))
+        return result
+
+    if scale_type == "quantize":
+        data_range = data_max - data_min
+        result = []
+        for i in range(n):
+            lo = data_min + data_range * i / n
+            hi = data_min + data_range * (i + 1) / n
+            result.append((lo, hi, colors[i], f"{lo:g} – {hi:g}"))
+        return result
+
+    raise ValueError(
+        f"Cannot extract legend bins for scale_type={scale_type!r}. "
+        "Use 'quantile', 'quantize', or 'categorical'."
+    )

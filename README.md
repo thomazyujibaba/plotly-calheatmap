@@ -18,7 +18,7 @@ This project picks up where plotly-calplot left off, providing an interactive ca
 - **Top & bottom border lines** — `top_bottom_lines=True` draws horizontal lines enclosing each month
 - **Month gap spacing** — extra visual separation between months via `month_gap`
 - **Custom week start day** — `week_start="sunday"` or `"saturday"` to change the first day of the week (default: `"monday"`)
-- **Wall-calendar layout** — `calendar_calheatmap()` renders a grid of mini-calendars with days as columns and weeks as rows
+- **Wall-calendar layout** — `layout="calendar"` renders a grid of mini-calendars with days as columns and weeks as rows
 - **Multi-year support** with independent tick configurations per subplot
 - **Year navigation buttons** (`navigation=True`)
 - **Localization support** (`locale` parameter) for month and day names (e.g. `pt_BR`, `es`, `fr`)
@@ -231,9 +231,7 @@ fig = calheatmap(df, x="date", y="value", week_start="sunday")
 Render a grid of mini-calendars (one per month), each looking like a standard wall calendar with days-of-week as columns and weeks as rows:
 
 ```python
-from plotly_calheatmap import calendar_calheatmap
-
-fig = calendar_calheatmap(df, x="date", y="value", cols=4, week_start="monday")
+fig = calheatmap(df, x="date", y="value", layout="calendar", cols=4)
 ```
 
 ## Credits

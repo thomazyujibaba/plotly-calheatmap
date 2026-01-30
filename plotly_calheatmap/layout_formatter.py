@@ -71,6 +71,7 @@ def decide_layout(
     margin: Optional[dict] = None,
     month_labels_side: str = "bottom",
     vertical: bool = False,
+    week_start: str = "monday",
 ) -> go.Layout:
     # Filter out None pairs (from month_gap padding or missing months)
     filtered = [
@@ -82,7 +83,7 @@ def decide_layout(
         month_names = list(month_names)
         month_positions = list(month_positions)
 
-    day_names = get_localized_day_abbrs(locale)
+    day_names = get_localized_day_abbrs(locale, week_start=week_start)
 
     _paper_bgcolor, _plot_bgcolor, _font_color = get_theme_defaults(
         dark_theme, paper_bgcolor, plot_bgcolor, font_color,
@@ -173,6 +174,7 @@ def create_month_lines(
         mode="lines",
         line=dict(color=month_lines_color, width=month_lines_width),
         hoverinfo="skip",
+        showlegend=False,
     )
     for date, dow, wkn in zip(data, weekdays_in_year, weeknumber_of_dates):
         if date.day == 1:
@@ -236,6 +238,7 @@ def create_top_bottom_lines(
         mode="lines",
         line=dict(color=month_lines_color, width=month_lines_width),
         hoverinfo="skip",
+        showlegend=False,
     )
     wk_min = min(weeknumber_of_dates)
     wk_max = max(weeknumber_of_dates)
@@ -272,6 +275,7 @@ def create_grouping_lines(
         mode="lines",
         line=dict(color=grouping_lines_color, width=grouping_lines_width),
         hoverinfo="skip",
+        showlegend=False,
     )
     for date, dow, wkn in zip(data, weekdays_in_year, weeknumber_of_dates):
         if date.day == 1 and date.month in boundary_months:

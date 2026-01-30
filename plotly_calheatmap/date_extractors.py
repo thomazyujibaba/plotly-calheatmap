@@ -23,20 +23,34 @@ def get_month_names(
 
 
 def get_date_coordinates(
-    data: pd.DataFrame, x: str, month_gap: int = 0,
+    data: pd.DataFrame, x: str, month_gap: int = 0, week_start: str = "monday",
 ) -> Tuple[Any, List[float], List[int], List[int]]:
     month_days = []
     for m in data[x].dt.month.unique():
         month_days.append(data.loc[data[x].dt.month == m, x].max().day)
 
-    weekdays_in_year = [i.weekday() for i in data[x]]
+    # week_start offset: shift weekday values so the chosen start day becomes 0
+    _week_start_offsets = {"monday": 0, "sunday": 1, "saturday": 2}
+    offset = _week_start_offsets[week_start]
+
+    weekdays_in_year = [(i.weekday() + offset) % 7 for i in data[x]]
 
     # sometimes the last week of the current year conflicts with next year's january
     # pandas uses ISO weeks, which will give those weeks the number 52 or 53, but this
     # is bad news for this plot therefore we need a correction to use Gregorian weeks,
     # for a more in-depth explanation check
     # https://stackoverflow.com/questions/44372048/python-pandas-timestamp-week-returns-52-for-first-day-of-year
-    weeknumber_of_dates = data[x].dt.strftime("%W").astype(int).tolist()
+    if offset == 0:
+        weeknumber_of_dates = data[x].dt.strftime("%W").astype(int).tolist()
+    else:
+        # Compute week numbers without shifting dates across year boundaries.
+        # Mirrors strftime %W/%U logic but for any start day.
+        _week_start_weekdays = {"sunday": 6, "saturday": 5}
+        ws = _week_start_weekdays[week_start]
+        yday = data[x].dt.dayofyear                    # 1-based
+        wday = data[x].dt.weekday                       # 0=Mon...6=Sun
+        days_since_start = (wday - ws) % 7
+        weeknumber_of_dates = ((yday - 1 - days_since_start + 7) // 7).tolist()
 
     gap_positions: List[int] = []
 

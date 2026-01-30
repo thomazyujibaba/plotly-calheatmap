@@ -118,6 +118,9 @@ fig.show()
 | `end_month` | `int` | `12` | Ending month (12 = December). |
 | `skip_empty_years` | `bool` | `False` | Skip years where the sum of `y` is less than 1. |
 | `replace_nans_with_zeros` | `bool` | `False` | Show dates without data as 0 instead of NaN. |
+| `week_start` | `str` | `"monday"` | First day of the week: `"monday"` (ISO 8601), `"sunday"` (US), or `"saturday"`. |
+| `layout` | `str` | `"github"` | Chart layout: `"github"` (contribution graph) or `"calendar"` (wall-calendar grid of mini-calendars). |
+| `cols` | `int` | `4` | Number of columns in the month grid when `layout="calendar"`. |
 
 ---
 
@@ -198,3 +201,4 @@ fig.show()
 | `nav_options` | `dict \| None` | `None` | Styling overrides for navigation buttons. |
 | `datasets` | `dict \| None` | `None` | Multiple datasets to swap via dropdown. Same format as `calheatmap()`. |
 | `dataset_nav_options` | `dict \| None` | `None` | Styling overrides for the dataset dropdown. |
+

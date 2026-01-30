@@ -13,7 +13,7 @@ from plotly_calheatmap.layout_formatter import (
 from plotly_calheatmap.single_year_calheatmap import year_calheatmap
 from plotly_calheatmap.i18n import get_localized_month_names
 from plotly_calheatmap.utils import fill_empty_with_zeros, validate_date_column
-from plotly_calheatmap.colorscale_utils import compute_colorscale, _apply_zero_color, _apply_nan_color
+from plotly_calheatmap.colorscale_utils import compute_colorscale, _apply_zero_color, _apply_nan_color, extract_legend_bins
 
 
 def _get_subplot_layout(**kwargs: Any) -> go.Layout:
@@ -320,6 +320,12 @@ def calheatmap(
     annotations_font_size: Optional[int] = None,
     annotations_font_color: Optional[str] = None,
     annotations_font_family: Optional[str] = None,
+    legend_style: Literal["colorbar", "legend"] = "colorbar",
+    colorbar_options: Optional[Dict[str, Any]] = None,
+    legend_options: Optional[Dict[str, Any]] = None,
+    week_start: Literal["monday", "sunday", "saturday"] = "monday",
+    layout: Literal["github", "calendar"] = "github",
+    cols: int = 4,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap
@@ -534,7 +540,48 @@ def calheatmap(
 
     annotations_font_family : str = None
         Font family for cell annotations (e.g. "Arial", "Courier New").
+
+    legend_style : str = "colorbar"
+        ``"colorbar"`` shows a continuous color bar (default).
+        ``"legend"`` creates discrete clickable legend items — one per
+        bin — so users can toggle categories on/off.  Requires a
+        discrete ``scale_type`` (``"quantile"``, ``"quantize"``, or
+        ``"categorical"``) or explicit ``bins``.
+
+    colorbar_options : dict = None
+        Override any Plotly colorbar property when ``legend_style="colorbar"``.
+        Supports ``orientation``, ``x``, ``y``, ``xanchor``, ``yanchor``,
+        ``thickness``, ``len``, ``tickformat``, ``nticks``, ``title``, etc.
+        Example::
+
+            colorbar_options={"orientation": "v", "x": 1.02, "thickness": 15}
+
+    legend_options : dict = None
+        Override any Plotly legend property when ``legend_style="legend"``.
+        Supports ``orientation``, ``x``, ``y``, ``xanchor``, ``yanchor``,
+        ``bgcolor``, ``font``, ``title``, etc.
+        Example::
+
+            legend_options={"orientation": "h", "y": -0.1, "x": 0.5}
     """
+    # --- Calendar layout: delegate to calendar_calheatmap implementation ---
+    if layout == "calendar":
+        from .calendar_calheatmap import _calendar_calheatmap_impl
+
+        return _calendar_calheatmap_impl(
+            data=data, x=x, y=y, name=name, dark_theme=dark_theme,
+            cols=cols, gap=gap, colorscale=colorscale, title=title,
+            showscale=showscale, total_height=total_height, width=width,
+            margin=margin, cmap_min=cmap_min, cmap_max=cmap_max,
+            log_scale=log_scale, date_fmt=date_fmt, agg=agg,
+            locale=locale, paper_bgcolor=paper_bgcolor,
+            plot_bgcolor=plot_bgcolor, font_color=font_color,
+            font_size=font_size, title_font_color=title_font_color,
+            title_font_size=title_font_size, hovertemplate=hovertemplate,
+            start_month=start_month, end_month=end_month,
+            week_start=week_start,
+        )
+
     # annotations_fmt implies annotations=True
     if annotations_fmt is not None:
         annotations = True
@@ -625,6 +672,8 @@ def calheatmap(
     trace_counts: list = []
     trace_structure: List[Dict[str, Any]] = []
 
+    use_discrete_legend = legend_style == "legend"
+
     for dataset_label, ds_cfg in dataset_configs.items():
         ds_y = ds_cfg["y"]
         ds_colorscale = ds_cfg["colorscale"]
@@ -681,6 +730,18 @@ def calheatmap(
             if ds_nan_sentinel is not None:
                 # Sentinel must also be in log space for zmin to work
                 ds_nan_sentinel = ds_cmap_min - (ds_cmap_max - ds_cmap_min) * 0.01
+
+        # Extract bins for discrete legend mode
+        ds_legend_bins = None
+        if use_discrete_legend:
+            ds_legend_bins = extract_legend_bins(
+                scale_type=ds_scale_type,
+                colors=ds_colors,
+                data=data[ds_y].dropna().values,
+                data_min=ds_cmap_min if not log_scale else float(data[ds_y].min()),
+                data_max=ds_cmap_max if not log_scale else float(data[ds_y].max()),
+                bins=ds_bins,
+            )
 
         dataset_trace_counts: list = []
 
@@ -740,6 +801,9 @@ def calheatmap(
                 annotations_font_size=annotations_font_size,
                 annotations_font_color=annotations_font_color,
                 annotations_font_family=annotations_font_family,
+                legend_bins=ds_legend_bins,
+                show_legend_items=(i == 0),
+                week_start=week_start,
             )
 
             tc = len(fig.data) - traces_before
@@ -754,15 +818,16 @@ def calheatmap(
         # Apply colorscaling to this dataset's traces
         ds_start = trace_structure[-len(unique_years)]["start"]
         ds_end = trace_structure[-1]["start"] + trace_structure[-1]["count"]
-        for idx in range(ds_start, ds_end):
-            trace = fig.data[idx]
-            if hasattr(trace, "zmin"):
-                trace.zmin = ds_nan_sentinel if ds_nan_sentinel is not None else ds_cmap_min
-                trace.zmax = ds_cmap_max
+        if not use_discrete_legend:
+            for idx in range(ds_start, ds_end):
+                trace = fig.data[idx]
+                if hasattr(trace, "zmin"):
+                    trace.zmin = ds_nan_sentinel if ds_nan_sentinel is not None else ds_cmap_min
+                    trace.zmax = ds_cmap_max
 
-        # Show colorbar for this dataset if configured
+        # Show colorbar for this dataset if configured (only in colorbar mode)
         ds_showscale = ds_cfg["showscale"]
-        if ds_showscale:
+        if ds_showscale and not use_discrete_legend:
             scale_title = ds_showscale if isinstance(ds_showscale, str) else ""
             tick_vals = np.linspace(ds_cmap_min, ds_cmap_max, 5).tolist() if scale_ticks else None
             colorbar = dict(
@@ -777,6 +842,16 @@ def calheatmap(
             )
             if tick_vals:
                 colorbar["tickvals"] = tick_vals
+                if log_scale:
+                    colorbar["ticktext"] = [f"{np.expm1(v):,.0f}" for v in tick_vals]
+                    colorbar["tickmode"] = "array"
+            # Apply user overrides
+            if colorbar_options:
+                if "title" in colorbar_options and isinstance(colorbar_options["title"], str):
+                    colorbar["title"] = dict(text=colorbar_options["title"], side="top")
+                else:
+                    for k, v in colorbar_options.items():
+                        colorbar[k] = v
             # Enable colorbar on first heatmap trace of each year so it
             # stays visible when switching years via navigation.
             ds_traces = [t for t in trace_structure if t["dataset"] == dataset_label]
@@ -791,6 +866,19 @@ def calheatmap(
         # Keep legacy trace_counts for single-dataset path
         if not use_dataset_swap:
             trace_counts = dataset_trace_counts
+
+    # Apply discrete legend layout
+    if use_discrete_legend:
+        legend_cfg = dict(
+            orientation="v",
+            yanchor="top",
+            y=1.0,
+            xanchor="left",
+            x=1.02,
+        )
+        if legend_options:
+            legend_cfg.update(legend_options)
+        fig.update_layout(showlegend=True, legend=legend_cfg)
 
     # Multi-dataset: set initial visibility and build menus
     if use_dataset_swap:
@@ -862,6 +950,7 @@ def month_calheatmap(
     annotations_font_size: Optional[int] = None,
     annotations_font_color: Optional[str] = None,
     annotations_font_family: Optional[str] = None,
+    colorbar_options: Optional[Dict[str, Any]] = None,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap by months (12 cols per row)
@@ -933,6 +1022,10 @@ def month_calheatmap(
 
     margin : dict = None
         custom margins dict, e.g. {"l": 40, "r": 20, "t": 40, "b": 20}
+
+    colorbar_options : dict = None
+        Override any Plotly colorbar property (orientation, x, y, thickness,
+        len, tickformat, nticks, title, etc.).
     """
     if data is None:
         if not isinstance(x, Series):
@@ -1022,6 +1115,13 @@ def month_calheatmap(
         if scale_ticks:
             zmin, zmax = gData.min(), gData.max()
             colorbar_config["tickvals"] = np.linspace(zmin, zmax, 5).tolist()
+        # Apply user overrides
+        if colorbar_options:
+            if "title" in colorbar_options and isinstance(colorbar_options["title"], str):
+                colorbar_config["title"] = dict(text=colorbar_options["title"], side="top")
+            else:
+                for k, v in colorbar_options.items():
+                    colorbar_config[k] = v
     else:
         colorbar_config = None
 
