@@ -17,16 +17,18 @@ This project picks up where plotly-calplot left off, providing an interactive ca
 - **Replace NaNs with zeros** — `replace_nans_with_zeros=True` displays empty dates as 0
 - **Top & bottom border lines** — `top_bottom_lines=True` draws horizontal lines enclosing each month
 - **Month gap spacing** — extra visual separation between months via `month_gap`
-- Multi-year support with independent tick configurations per subplot
-- Year navigation buttons (`navigation=True`)
-- Localization support (`locale` parameter) for month and day names (e.g. `pt_BR`, `es`, `fr`)
-- Customizable hovertemplate with friendly `{placeholder}` syntax and `customdata` columns
+- **Custom week start day** — `week_start="sunday"` or `"saturday"` to change the first day of the week (default: `"monday"`)
+- **Wall-calendar layout** — `calendar_calheatmap()` renders a grid of mini-calendars with days as columns and weeks as rows
+- **Multi-year support** with independent tick configurations per subplot
+- **Year navigation buttons** (`navigation=True`)
+- **Localization support** (`locale` parameter) for month and day names (e.g. `pt_BR`, `es`, `fr`)
+- **Customizable hovertemplate** with friendly `{placeholder}` syntax and `customdata` columns
 - **Smart colorscales** — pass a `colors` list and `scale_type` (`"linear"`, `"quantile"`, `"quantize"`, `"diverging"`, `"categorical"`) for automatic interval computation
 - **Cell annotations** — `annotations=True` or `annotations_fmt="%{z:.0f}"` displays values/labels inside each cell
 - **Zero-value distinction** — `zero_color` gives 0-value cells a dedicated color while missing data stays transparent
 - **Missing-data styling** — `nan_color` assigns a dedicated color to NaN/missing cells, distinguishing them from zero-value cells
 - **Responsive / auto-sizing** — all chart types adapt width to the container automatically; height is computed from the data (overridable via `total_height` and `width`)
-- Fully customizable colorscales (including custom lists)
+- **Fully customizable colorscales** (including custom lists)
 - Month separator lines, configurable month label placement, and color scale with label/ticks
 - Flexible layout options: `gap`, `margin`, `font_*`, `paper_bgcolor`, `plot_bgcolor`, etc.
 
@@ -214,6 +216,24 @@ Fully enclose each month by combining `month_lines` with `top_bottom_lines`:
 
 ```python
 fig = calheatmap(df, x="date", y="value", month_lines=True, top_bottom_lines=True)
+```
+
+### Custom Week Start Day
+
+Choose which day the week starts on — `"monday"` (default, ISO 8601), `"sunday"` (US convention), or `"saturday"`:
+
+```python
+fig = calheatmap(df, x="date", y="value", week_start="sunday")
+```
+
+### Wall-Calendar Layout
+
+Render a grid of mini-calendars (one per month), each looking like a standard wall calendar with days-of-week as columns and weeks as rows:
+
+```python
+from plotly_calheatmap import calendar_calheatmap
+
+fig = calendar_calheatmap(df, x="date", y="value", cols=4, week_start="monday")
 ```
 
 ## Credits

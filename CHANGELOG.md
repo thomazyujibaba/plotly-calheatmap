@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1
+
+### New Features
+
+- **Interactive filtering legend** — New `legend_style="legend"` parameter replaces the continuous colorbar with discrete, clickable legend items — one per color bin. Users can click legend entries to show/hide categories on the chart. Requires a discrete `scale_type` (`"quantile"`, `"quantize"`, or `"categorical"`). Customize placement and styling via the new `legend_options` parameter.
+- **Colorbar customization** — New `colorbar_options` parameter allows overriding any Plotly colorbar property (`orientation`, `x`, `y`, `thickness`, `len`, `tickformat`, `title`, etc.) for both `calheatmap` and `month_calheatmap`.
+- **Custom week start day** — New `week_start` parameter lets users choose `"monday"` (default, ISO 8601), `"sunday"` (US convention), or `"saturday"` as the first day of the week. Day labels, weekday positions, and week numbering all adjust automatically. New example: `week_start_day.py`.
+- **Wall-calendar layout** — New `calendar_calheatmap()` function renders a grid of mini-calendars (one per month), each with days-of-week as columns and weeks as rows — like a standard wall calendar. Supports `week_start`, `cols` for grid layout, and all common styling parameters. New example: `calendar_layout.py`.
+
+### Bug Fixes
+
+- **Log-scale colorbar ticks** — Fixed colorbar displaying log-transformed tick values instead of original values when `log_scale=True` and `showscale` is enabled. Tick labels now show the reverse-transformed (`expm1`) values.
+
 ## 0.4
 
 ### New Features
