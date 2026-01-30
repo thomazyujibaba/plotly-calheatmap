@@ -4,11 +4,14 @@
 
 ### New Features
 
+- **Cell annotations** — New `annotations` and `annotations_fmt` parameters display text (values, labels) inside each cell. Use `annotations=True` for default value display or `annotations_fmt="%{z:.0f}"` for custom formatting. Works with both `calheatmap` and `month_calheatmap`. New example: `annotations.py`.
 - **Smart colorscales** — New `colors` parameter accepts a simple list of colors (e.g. `["#0e4429", "#006d32", "#39d353"]`) and automatically computes the colorscale intervals from the data. Use with `scale_type` to control how colors are distributed:
   - `"linear"` (default): colors evenly spaced across data range
   - `"quantile"`: each color covers equal number of data points (good for skewed data)
   - `"quantize"`: data range split into equal mathematical intervals
   - `"diverging"`: two gradients meeting at a `pivot` point, with optional `symmetric` mode
+  - `"categorical`: discrete bins range consisted on `(min, max, color)` tuples
+
 - **Zero-value distinction** — New `zero_color` parameter assigns a dedicated color to cells with value 0, visually separating them from NaN/missing cells (which remain transparent). Works with both `colors` and manual `colorscale`.
 - **Missing-data styling** — New `nan_color` parameter assigns a dedicated color to cells with no data (NaN), visually distinguishing them from cells with value 0. Works with both `colors` and manual `colorscale`, and inside the `datasets` dict.
 - **Locale-aware value formatting** — `{value:FORMAT}` in `hovertemplate` now supports the `locale` parameter. E.g. with `locale="pt_BR"`, `{value:,.2f}` renders as `1.234,50` (Brazilian number format).

@@ -57,6 +57,23 @@ class TestMonthCalplot(TestCase):
         self.assertIsInstance(cp, go.Figure)
         self.assertIsInstance(cp.data, tuple)
 
+    def test_should_create_with_annotations(self) -> None:
+        cp = month_calheatmap(
+            self.one_year_sample_dataframe, "ds", "value", annotations=True
+        )
+        self.assertIsInstance(cp, go.Figure)
+        self.assertEqual(cp.data[0].texttemplate, "%{z:.0f}")
+
+    def test_should_create_with_annotations_fmt(self) -> None:
+        cp = month_calheatmap(
+            self.one_year_sample_dataframe,
+            "ds",
+            "value",
+            annotations_fmt="%{z:.1f}",
+        )
+        self.assertIsInstance(cp, go.Figure)
+        self.assertEqual(cp.data[0].texttemplate, "%{z:.1f}")
+
     def test_should_create_black_theme_multi_year(self) -> None:
         cp = month_calheatmap(
             self.multi_year_sample_dataframe, "ds", "value", dark_theme=True

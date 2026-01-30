@@ -6,8 +6,8 @@ import numpy as np
 
 
 def compute_colorscale(
-    colors: List[str],
-    scale_type: Literal["linear", "diverging", "quantile", "quantize"] = "linear",
+    colors: Optional[List[str]] = None,
+    scale_type: Literal["linear", "diverging", "quantile", "quantize", "categorical"] = "linear",
     data: Optional[np.ndarray] = None,
     data_min: Optional[float] = None,
     data_max: Optional[float] = None,
@@ -15,15 +15,19 @@ def compute_colorscale(
     symmetric: bool = False,
     zero_color: Optional[str] = None,
     nan_color: Optional[str] = None,
+    bins: Optional[List[Tuple[float, float, str]]] = None,
 ) -> Union[List[List[Union[float, str]]], tuple[List[List[Union[float, str]]], float]]:
     """Compute a Plotly colorscale from a list of colors and a scale type.
 
     Parameters
     ----------
-    colors : list of str
+    colors : list of str, optional
         Colors as hex codes or CSS named colors (minimum 2).
+        Not required when *scale_type* is ``"categorical"`` (bins carry
+        their own colors).
     scale_type : str
-        ``"linear"``, ``"diverging"``, ``"quantile"``, or ``"quantize"``.
+        ``"linear"``, ``"diverging"``, ``"quantile"``, ``"quantize"``,
+        or ``"categorical"``.
     data : np.ndarray, optional
         Raw data values.  Required for ``"quantile"``; used to derive
         *data_min*/*data_max* when those are not supplied.
@@ -42,6 +46,9 @@ def compute_colorscale(
         replaced with a sentinel value and a sharp breakpoint is inserted
         at the bottom of the colorscale.  Returns a tuple of
         ``(colorscale, sentinel)`` instead of just the colorscale.
+    bins : list of (float, float, str), optional
+        Categorical bin definitions.  Each tuple is ``(min_val, max_val,
+        color)``.  Required when *scale_type* is ``"categorical"``.
 
     Returns
     -------
@@ -49,8 +56,12 @@ def compute_colorscale(
         Plotly-compatible colorscale. When *nan_color* is set, returns
         ``(colorscale, sentinel)`` so the caller can replace NaN values.
     """
-    if len(colors) < 2:
-        raise ValueError("At least 2 colors are required.")
+    if scale_type == "categorical":
+        if not bins:
+            raise ValueError("scale_type='categorical' requires the bins parameter.")
+    else:
+        if colors is None or len(colors) < 2:
+            raise ValueError("At least 2 colors are required.")
 
     if data is not None:
         clean = data[~np.isnan(data)]
@@ -67,28 +78,31 @@ def compute_colorscale(
     if data_min == data_max:
         data_max = data_min + 1.0
 
-    builders = {
-        "linear": _compute_linear_scale,
-        "diverging": _compute_diverging_scale,
-        "quantile": _compute_quantile_scale,
-        "quantize": _compute_quantize_scale,
-    }
-    if scale_type not in builders:
-        raise ValueError(
-            f"Unknown scale_type {scale_type!r}. "
-            f"Choose from: {', '.join(builders)}."
-        )
-
-    if scale_type == "quantile":
-        if data is None:
-            raise ValueError("scale_type='quantile' requires the data parameter.")
-        scale = builders[scale_type](colors, data)
-    elif scale_type == "diverging":
-        scale = builders[scale_type](
-            colors, data_min, data_max, pivot=pivot, symmetric=symmetric,
-        )
+    if scale_type == "categorical":
+        scale = _compute_categorical_scale(bins, data_min, data_max)
     else:
-        scale = builders[scale_type](colors, data_min, data_max)
+        builders = {
+            "linear": _compute_linear_scale,
+            "diverging": _compute_diverging_scale,
+            "quantile": _compute_quantile_scale,
+            "quantize": _compute_quantize_scale,
+        }
+        if scale_type not in builders:
+            raise ValueError(
+                f"Unknown scale_type {scale_type!r}. "
+                f"Choose from: {', '.join(builders)}, categorical."
+            )
+
+        if scale_type == "quantile":
+            if data is None:
+                raise ValueError("scale_type='quantile' requires the data parameter.")
+            scale = builders[scale_type](colors, data)
+        elif scale_type == "diverging":
+            scale = builders[scale_type](
+                colors, data_min, data_max, pivot=pivot, symmetric=symmetric,
+            )
+        else:
+            scale = builders[scale_type](colors, data_min, data_max)
 
     if zero_color is not None:
         scale = _apply_zero_color(scale, zero_color, data_min, data_max)
@@ -194,6 +208,39 @@ def _compute_quantize_scale(
             scale.append([lo, colors[i - 1]])
             scale.append([lo, colors[i]])
     scale.append([1.0, colors[-1]])
+    return scale
+
+
+def _compute_categorical_scale(
+    bins: List[Tuple[float, float, str]],
+    data_min: float,
+    data_max: float,
+) -> List[List[Union[float, str]]]:
+    """Build a piecewise-constant colorscale from user-defined bins.
+
+    Each bin is a ``(lo, hi, color)`` tuple.  Values in ``[lo, hi]`` map
+    to the given color.  Bins must be sorted by *lo* and should cover
+    the full data range.
+    """
+    bins = sorted(bins, key=lambda b: b[0])
+    data_range = data_max - data_min
+    if data_range <= 0:
+        return [[0.0, bins[0][2]], [1.0, bins[-1][2]]]
+
+    scale: List[List[Union[float, str]]] = []
+    for i, (lo, hi, color) in enumerate(bins):
+        # Clamp to data range and normalize to [0, 1]
+        norm_lo = max(0.0, min(1.0, (lo - data_min) / data_range))
+        norm_hi = max(0.0, min(1.0, (min(hi, data_max) - data_min) / data_range))
+
+        if i == 0:
+            scale.append([0.0, color])
+        else:
+            # Sharp transition from previous color to this one
+            scale.append([norm_lo, bins[i - 1][2]])
+            scale.append([norm_lo, color])
+
+    scale.append([1.0, bins[-1][2]])
     return scale
 
 

@@ -107,6 +107,11 @@ def create_heatmap_without_formatting(
     log_scale: bool = False,
     locale: Optional[str] = None,
     nan_sentinel: Optional[float] = None,
+    annotations: bool = False,
+    annotations_fmt: Optional[str] = None,
+    annotations_font_size: Optional[int] = None,
+    annotations_font_color: Optional[str] = None,
+    annotations_font_family: Optional[str] = None,
 ) -> List[go.Figure]:
     hovertemplate_extra = ""
     if text is not None:
@@ -203,6 +208,19 @@ def create_heatmap_without_formatting(
                     text_values.append("")
                 customdata_list.append([""] * n_custom_cols)
 
+    # Build annotation (texttemplate) settings
+    heatmap_texttemplate = None
+    heatmap_textfont = None
+    if annotations:
+        heatmap_texttemplate = annotations_fmt if annotations_fmt else "%{z}"
+        font = {}
+        font["size"] = annotations_font_size if annotations_font_size is not None else 10
+        if annotations_font_color is not None:
+            font["color"] = annotations_font_color
+        if annotations_font_family is not None:
+            font["family"] = annotations_font_family
+        heatmap_textfont = font
+
     raw_heatmap = [
         go.Heatmap(
             x=hm_x,
@@ -217,6 +235,8 @@ def create_heatmap_without_formatting(
             customdata=customdata_list,
             hoverongaps=False,
             name=str(year),
+            texttemplate=heatmap_texttemplate,
+            textfont=heatmap_textfont,
         )
     ]
     return raw_heatmap

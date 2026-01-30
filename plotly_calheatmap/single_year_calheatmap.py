@@ -60,6 +60,11 @@ def year_calheatmap(
     grouping_lines_color: Optional[str] = None,
     log_scale: bool = False,
     nan_sentinel: Optional[float] = None,
+    annotations: bool = False,
+    annotations_fmt: Optional[str] = None,
+    annotations_font_size: Optional[int] = None,
+    annotations_font_color: Optional[str] = None,
+    annotations_font_family: Optional[str] = None,
 ) -> go.Figure:
     """
     Each year is subplotted separately and added to the main plot
@@ -90,6 +95,11 @@ def year_calheatmap(
         log_scale=log_scale,
         locale=locale,
         nan_sentinel=nan_sentinel,
+        annotations=annotations,
+        annotations_fmt=annotations_fmt,
+        annotations_font_size=annotations_font_size,
+        annotations_font_color=annotations_font_color,
+        annotations_font_family=annotations_font_family,
     )
 
     if month_lines:

@@ -73,6 +73,7 @@ def _prepare_dataset_configs(
     nan_color: Optional[str] = None,
     pivot: Optional[float] = None,
     symmetric: bool = False,
+    bins: Optional[List[tuple]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Normalize the ``datasets`` parameter into a uniform config dict.
 
@@ -95,6 +96,7 @@ def _prepare_dataset_configs(
                 "nan_color": nan_color,
                 "pivot": pivot,
                 "symmetric": symmetric,
+                "bins": bins,
             }
         }
 
@@ -113,6 +115,7 @@ def _prepare_dataset_configs(
             "nan_color": config.get("nan_color", nan_color),
             "pivot": config.get("pivot", pivot),
             "symmetric": config.get("symmetric", symmetric),
+            "bins": config.get("bins", bins),
         }
     return normalized
 
@@ -267,7 +270,8 @@ def calheatmap(
     years_title: bool = False,
     colorscale: Union[str, list] = "greens",
     colors: Optional[List[str]] = None,
-    scale_type: Optional[Literal["linear", "diverging", "quantile", "quantize"]] = "linear",
+    scale_type: Optional[Literal["linear", "diverging", "quantile", "quantize", "categorical"]] = "linear",
+    bins: Optional[List[tuple]] = None,
     zero_color: Optional[str] = None,
     nan_color: Optional[str] = None,
     pivot: Optional[float] = None,
@@ -311,6 +315,11 @@ def calheatmap(
     log_scale: bool = False,
     datasets: Optional[Dict[str, Dict[str, Any]]] = None,
     dataset_nav_options: Optional[Dict[str, Any]] = None,
+    annotations: bool = False,
+    annotations_fmt: Optional[str] = None,
+    annotations_font_size: Optional[int] = None,
+    annotations_font_color: Optional[str] = None,
+    annotations_font_family: Optional[str] = None,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap
@@ -509,7 +518,27 @@ def calheatmap(
 
     dataset_nav_options : dict = None
         Styling overrides for the dataset dropdown menu.
+
+    annotations : bool = False
+        if True, displays cell values as text annotations inside each cell.
+
+    annotations_fmt : str = None
+        format string for annotations, using Plotly's texttemplate syntax
+        (e.g. "%{z:.0f}"). Implies ``annotations=True``.
+
+    annotations_font_size : int = None
+        Font size for cell annotations. Defaults to 10.
+
+    annotations_font_color : str = None
+        Font color for cell annotations (e.g. "white", "#333").
+
+    annotations_font_family : str = None
+        Font family for cell annotations (e.g. "Arial", "Courier New").
     """
+    # annotations_fmt implies annotations=True
+    if annotations_fmt is not None:
+        annotations = True
+
     data = data.copy()
     data[x] = validate_date_column(data[x], date_fmt)
 
@@ -517,7 +546,7 @@ def calheatmap(
     dataset_configs = _prepare_dataset_configs(
         datasets, y, colorscale, showscale, cmap_min, cmap_max, name,
         colors=colors, scale_type=scale_type, zero_color=zero_color, nan_color=nan_color,
-        pivot=pivot, symmetric=symmetric,
+        pivot=pivot, symmetric=symmetric, bins=bins,
     )
     use_dataset_swap = len(dataset_configs) > 1
 
@@ -609,14 +638,16 @@ def calheatmap(
         if ds_cmap_max is None:
             ds_cmap_max = data[ds_y].max()
 
-        # Compute colorscale from colors list if provided
+        # Compute colorscale from colors list or bins if provided
         ds_nan_color = ds_cfg.get("nan_color")
         ds_nan_sentinel = None
         ds_colors = ds_cfg.get("colors")
-        if ds_colors is not None:
+        ds_bins = ds_cfg.get("bins")
+        ds_scale_type = ds_cfg.get("scale_type", "linear")
+        if ds_colors is not None or ds_scale_type == "categorical":
             result = compute_colorscale(
                 colors=ds_colors,
-                scale_type=ds_cfg.get("scale_type", "linear"),
+                scale_type=ds_scale_type,
                 data=data[ds_y].dropna().values,
                 data_min=ds_cmap_min,
                 data_max=ds_cmap_max,
@@ -624,6 +655,7 @@ def calheatmap(
                 symmetric=ds_cfg.get("symmetric", False),
                 zero_color=ds_cfg.get("zero_color"),
                 nan_color=ds_nan_color,
+                bins=ds_bins,
             )
             if ds_nan_color is not None:
                 ds_colorscale, ds_nan_sentinel = result
@@ -703,6 +735,11 @@ def calheatmap(
                 grouping_lines_color=grouping_lines_color,
                 log_scale=log_scale,
                 nan_sentinel=ds_nan_sentinel,
+                annotations=annotations,
+                annotations_fmt=annotations_fmt,
+                annotations_font_size=annotations_font_size,
+                annotations_font_color=annotations_font_color,
+                annotations_font_family=annotations_font_family,
             )
 
             tc = len(fig.data) - traces_before
@@ -820,6 +857,11 @@ def month_calheatmap(
     width: Optional[int] = None,
     margin: Optional[dict] = None,
     agg: Optional[Literal["sum", "mean", "count", "max"]] = None,
+    annotations: bool = False,
+    annotations_fmt: Optional[str] = None,
+    annotations_font_size: Optional[int] = None,
+    annotations_font_color: Optional[str] = None,
+    annotations_font_family: Optional[str] = None,
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap by months (12 cols per row)
@@ -983,6 +1025,21 @@ def month_calheatmap(
     else:
         colorbar_config = None
 
+    # annotations_fmt implies annotations=True
+    if annotations_fmt is not None:
+        annotations = True
+    ann_texttemplate = None
+    ann_textfont = None
+    if annotations:
+        ann_texttemplate = annotations_fmt if annotations_fmt else "%{z:.0f}"
+        font = {}
+        font["size"] = annotations_font_size if annotations_font_size is not None else 10
+        if annotations_font_color is not None:
+            font["color"] = annotations_font_color
+        if annotations_font_family is not None:
+            font["family"] = annotations_font_family
+        ann_textfont = font
+
     cplt = go.Heatmap(
         x=gData.index.month,
         y=gData.index.year,
@@ -995,6 +1052,8 @@ def month_calheatmap(
         hoverinfo="text",
         text=hovertext,
         colorbar=colorbar_config,
+        texttemplate=ann_texttemplate,
+        textfont=ann_textfont,
     )
 
     fig = go.Figure(data=cplt, layout=layout)

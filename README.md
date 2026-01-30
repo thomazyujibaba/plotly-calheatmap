@@ -21,13 +21,18 @@ This project picks up where plotly-calplot left off, providing an interactive ca
 - Year navigation buttons (`navigation=True`)
 - Localization support (`locale` parameter) for month and day names (e.g. `pt_BR`, `es`, `fr`)
 - Customizable hovertemplate with friendly `{placeholder}` syntax and `customdata` columns
-- **Smart colorscales** — pass a `colors` list and `scale_type` (`"linear"`, `"quantile"`, `"quantize"`, `"diverging"`) for automatic interval computation
+- **Smart colorscales** — pass a `colors` list and `scale_type` (`"linear"`, `"quantile"`, `"quantize"`, `"diverging"`, `"categorical"`) for automatic interval computation
+- **Cell annotations** — `annotations=True` or `annotations_fmt="%{z:.0f}"` displays values/labels inside each cell
 - **Zero-value distinction** — `zero_color` gives 0-value cells a dedicated color while missing data stays transparent
 - **Missing-data styling** — `nan_color` assigns a dedicated color to NaN/missing cells, distinguishing them from zero-value cells
 - **Responsive / auto-sizing** — all chart types adapt width to the container automatically; height is computed from the data (overridable via `total_height` and `width`)
 - Fully customizable colorscales (including custom lists)
 - Month separator lines, configurable month label placement, and color scale with label/ticks
 - Flexible layout options: `gap`, `margin`, `font_*`, `paper_bgcolor`, `plot_bgcolor`, etc.
+
+## Documentation
+
+For the full API reference (all parameters for `calheatmap()` and `hourly_calheatmap()`), see [docs/API.md](docs/API.md).
 
 ## Installation
 
@@ -136,6 +141,11 @@ fig = calheatmap(df, x="date", y="value",
 fig = calheatmap(df, x="date", y="temp",
     colors=["#2166ac", "#f7f7f7", "#b2182b"],
     scale_type="diverging", pivot=20, symmetric=True)
+
+# categorical: user-defined bins with explicit color per range
+fig = calheatmap(df, x="date", y="value",
+    scale_type="categorical",
+    bins=[(0, 0, "gray"), (1, 3, "lightgreen"), (4, float("inf"), "darkgreen")])
 ```
 
 **Zero-value distinction** — give cells with value 0 a dedicated color, separate from missing data (which stays transparent):
@@ -156,6 +166,20 @@ fig = calheatmap(df, x="date", y="commits",
 ```
 
 All new parameters also work inside the `datasets` dict for per-metric configuration.
+
+### Cell Annotations
+
+Display values or labels inside each cell:
+
+```python
+# Show integer values inside cells
+fig = calheatmap(df, x="date", y="score",
+    annotations=True, annotations_fmt="%{z:.0f}",
+    gap=4, total_height=280)
+
+# Simple boolean — shows raw z values
+fig = calheatmap(df, x="date", y="score", annotations=True)
+```
 
 ### Custom Time Groupings
 

@@ -61,6 +61,25 @@ class TestCalplot(TestCase):
         self.assertTrue(type(cp) == go.Figure)
         self.assertTrue(cp.layout["paper_bgcolor"] == "#333")
 
+    def test_should_create_with_annotations(self) -> None:
+        cp = calheatmap(
+            self.one_year_sample_dataframe, "ds", "value", annotations=True
+        )
+        self.assertIsInstance(cp, go.Figure)
+        heatmap = cp.data[0]
+        self.assertEqual(heatmap.texttemplate, "%{z}")
+
+    def test_should_create_with_annotations_fmt(self) -> None:
+        cp = calheatmap(
+            self.one_year_sample_dataframe,
+            "ds",
+            "value",
+            annotations_fmt="%{z:.0f}",
+        )
+        self.assertIsInstance(cp, go.Figure)
+        heatmap = cp.data[0]
+        self.assertEqual(heatmap.texttemplate, "%{z:.0f}")
+
     def test_should_create_with_years_title(self) -> None:
         cp = calheatmap(self.multi_year_sample_dataframe, "ds", "value", years_title=True)
 

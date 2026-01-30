@@ -5,6 +5,7 @@ Scale types:
   - quantile: Each color covers equal number of data points
   - quantize: Data range split into equal mathematical intervals
   - diverging: Two gradients meeting at a pivot point
+  - categorical: User-defined bins with explicit color per range
 
 Zero color:
   - zero_color gives value 0 a dedicated color while NaN stays transparent
@@ -85,3 +86,22 @@ fig_diverging = calheatmap(
     total_height=150,
 )
 fig_diverging.show()
+
+# --- 5. Categorical scale ---
+# User-defined bins: 0 = gray, 1-3 = light green, 4-9 = medium green, 10+ = dark green
+fig_categorical = calheatmap(
+    data=df,
+    x="date",
+    y="value",
+    scale_type="categorical",
+    bins=[
+        (0, 0, "#d9d9d9"),
+        (1, 3, "#fee08b"),
+        (4, 9, "#f46d43"),
+        (10, float("inf"), "#9e0142"),
+    ],
+    title="Categorical scale (0=gray, 1-3=yellow, 4-9=orange, 10+=red)",
+    gap=3,
+    total_height=150,
+)
+fig_categorical.show()
