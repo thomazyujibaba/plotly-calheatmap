@@ -1,7 +1,7 @@
 from .calheatmap import calheatmap, month_calheatmap
 from .hourly_calheatmap import hourly_calheatmap
 
-__version__ = "0.4.1"
+__version__ = "0.5"
 
 __all__ = [
     "calheatmap",

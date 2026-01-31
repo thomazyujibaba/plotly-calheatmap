@@ -1,6 +1,6 @@
 # Roadmap
 
-## v0.5
+## v0.6
 
 - [ ] **ISO week numbering** — Option to use ISO 8601 weeks instead of the current `strftime("%W")` Gregorian weeks.
 - [ ] **Highlight specific dates** — An API to mark/outline holidays, insteadeadlines, or special dates with borders or markers.
