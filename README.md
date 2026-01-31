@@ -184,6 +184,10 @@ fig = calheatmap(df, x="date", y="score",
 fig = calheatmap(df, x="date", y="score", annotations=True)
 ```
 
+
+<img src="https://github.com/thomazyujibaba/plotly-calheatmap/blob/master/assets/images/cell_annotation.png?raw=true">
+
+
 ### Custom Time Groupings
 
 Draw thicker separator lines at quarter, bimester, or semester boundaries and replace axis labels with group names:
@@ -243,6 +247,9 @@ fig = calheatmap(
 
 Hover shows per-source values and the combined total for overlap days.
 
+<img src="https://github.com/thomazyujibaba/plotly-calheatmap/blob/master/assets/images/multi_layer.png?raw=true">
+
+
 ### Wall-Calendar Layout
 
 Render a grid of mini-calendars (one per month), each looking like a standard wall calendar with days-of-week as columns and weeks as rows:
@@ -250,6 +257,8 @@ Render a grid of mini-calendars (one per month), each looking like a standard wa
 ```python
 fig = calheatmap(df, x="date", y="value", layout="calendar", cols=4)
 ```
+
+<img src="https://github.com/thomazyujibaba/plotly-calheatmap/blob/master/assets/images/wall_calendar.png?raw=true">
 
 ## Credits
 

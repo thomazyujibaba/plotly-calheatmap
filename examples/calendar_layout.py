@@ -10,7 +10,7 @@ values = np.random.poisson(lam=4, size=len(dates))
 
 df = pd.DataFrame({"date": dates, "value": values})
 
-# Wall-calendar layout: 12 mini-calendars in a single row
+# Wall-calendar layout: 12 mini-calendars 4x3 grid
 fig = calheatmap(
     data=df,
     x="date",
@@ -20,7 +20,6 @@ fig = calheatmap(
     gap=2,
     week_start="monday",
     layout="calendar",
-    cols=12,
-    locale="pt_BR",
+    cols=4,
 )
 fig.show()

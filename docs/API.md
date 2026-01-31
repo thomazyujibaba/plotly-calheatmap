@@ -107,7 +107,17 @@ fig.show()
 | `navigation` | `bool` | `False` | Show one year at a time with navigation buttons (GitHub-style). |
 | `nav_options` | `dict \| None` | `None` | Styling overrides for navigation buttons (Plotly `updatemenus` keys). |
 | `datasets` | `dict \| None` | `None` | Multiple datasets to swap via dropdown. Keys are labels, values are dicts with `"y"` (required), `"colorscale"`, `"showscale"`, `"cmap_min"`, `"cmap_max"`, `"name"` (all optional). |
-| `dataset_nav_options` | `dict \| None` | `None` | Styling overrides for the dataset dropdown. |
+| `dataset_nav_options` | `dict \| None` | `None` | Styling overrides for the dataset dropdown (Plotly `updatemenus` keys: `x`, `y`, `font`, `bgcolor`, etc.). |
+| `layers` | `list[dict] \| None` | `None` | Multi-layer mode: list of dicts, each with `"data"` (DataFrame), `"x"`, `"y"`, `"colorscale"`, and `"name"`. Overlapping dates are summed and shown with `overlap_colorscale`. Mutually exclusive with `data`/`x`/`y`. |
+| `overlap_colorscale` | `str \| list` | `"greens"` | Colorscale for days present in multiple layers (summed values). |
+
+### Legend & Colorbar
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `legend_style` | `str \| None` | `None` | Set to `"legend"` to replace the continuous colorbar with discrete clickable legend items. Requires a discrete `scale_type` (`"quantile"`, `"quantize"`, or `"categorical"`). |
+| `legend_options` | `dict \| None` | `None` | Styling overrides for the legend (e.g. `{"orientation": "h", "y": -0.1, "x": 0.5}`). |
+| `colorbar_options` | `dict \| None` | `None` | Overrides for any Plotly colorbar property (`orientation`, `x`, `y`, `thickness`, `len`, `tickformat`, `title`, etc.). |
 
 ### Other
 
