@@ -543,7 +543,7 @@ def _build_with_navigation(
         ds_menu = dict(
             type="dropdown", direction="down", active=0,
             buttons=ds_buttons, x=0, xanchor="left",
-            y=1.0, yanchor="bottom", showactive=True,
+            y=1.4, yanchor="top", showactive=True,
         )
         if dataset_nav_options:
             ds_menu.update(dataset_nav_options)
@@ -562,8 +562,8 @@ def _build_with_navigation(
 
             yr_menu = dict(
                 type="buttons", direction="right", active=0,
-                buttons=yr_buttons, x=0.5, xanchor="center",
-                y=1.12, yanchor="top", showactive=True,
+                buttons=yr_buttons, x=1, xanchor="right",
+                y=1.4, yanchor="top", showactive=True,
             )
             if nav_options:
                 yr_menu.update(nav_options)
@@ -592,8 +592,8 @@ def _build_with_navigation(
 
         menu_config = dict(
             type="buttons", direction="right", active=0,
-            buttons=buttons, x=0.5, xanchor="center",
-            y=1.12, yanchor="top", showactive=True,
+            buttons=buttons, x=1, xanchor="right",
+            y=1.4, yanchor="top", showactive=True,
         )
         if nav_options:
             menu_config.update(nav_options)

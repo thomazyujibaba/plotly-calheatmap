@@ -13,7 +13,12 @@ from plotly_calheatmap.layout_formatter import (
 from plotly_calheatmap.single_year_calheatmap import year_calheatmap
 from plotly_calheatmap.i18n import get_localized_month_names
 from plotly_calheatmap.utils import fill_empty_with_zeros, validate_date_column
-from plotly_calheatmap.colorscale_utils import compute_colorscale, _apply_zero_color, _apply_nan_color, extract_legend_bins
+from plotly_calheatmap.colorscale_utils import (
+    compute_colorscale,
+    _apply_zero_color,
+    _apply_nan_color,
+    extract_legend_bins,
+)
 
 
 def _get_subplot_layout(**kwargs: Any) -> go.Layout:
@@ -57,6 +62,186 @@ def _get_subplot_layout(**kwargs: Any) -> go.Layout:
             **kwargs,
         }
     )
+
+
+def _merge_layers(
+    layers: List[Dict[str, Any]],
+    overlap_colorscale: Union[str, list],
+    date_fmt: str = "%Y-%m-%d",
+    agg: Optional[str] = None,
+) -> Tuple[DataFrame, list, str, str, List[str]]:
+    """Merge multiple layer DataFrames into a single DataFrame with composite z-values.
+
+    Parameters
+    ----------
+    layers : list of dict
+        Each dict must have ``"data"`` (DataFrame), ``"x"`` (date col),
+        ``"y"`` (value col), ``"colorscale"`` (str or list), and
+        optionally ``"name"`` (label).
+    overlap_colorscale : str or list
+        Colorscale for days present in multiple layers.
+    date_fmt : str
+        Date format for parsing.
+    agg : str, optional
+        Aggregation function (applied per-layer before merging).
+
+    Returns
+    -------
+    merged_data : DataFrame
+        Unified DataFrame with columns: ``_layer_date``, ``_layer_z``
+        (remapped into composite bands), ``_layer_value`` (display value),
+        ``_layer_source`` (source label), plus per-layer value columns.
+    composite_colorscale : list
+        Plotly colorscale with bands for each layer + overlap.
+    x_col : str
+        Name of the date column (``"_layer_date"``).
+    y_col : str
+        Name of the remapped z column (``"_layer_z"``).
+    layer_names : list of str
+        Names of each layer for hover display.
+    """
+    import pandas as pd
+    from plotly_calheatmap.colorscale_utils import build_composite_colorscale
+
+    n_layers = len(layers)
+    layer_names = [layer.get("name", f"Layer {i}") for i, layer in enumerate(layers)]
+
+    # Build per-layer date→value mappings
+    layer_series = []
+    for layer in layers:
+        df = layer["data"].copy()
+        x_col = layer["x"]
+        y_col = layer["y"]
+        df[x_col] = validate_date_column(df[x_col], date_fmt)
+        if agg is not None:
+            df[x_col] = df[x_col].dt.normalize()
+            df = df.groupby(x_col, as_index=False).agg({y_col: agg})
+        series = df.set_index(x_col)[y_col]
+        # Remove duplicates by keeping the sum
+        series = series.groupby(series.index).sum()
+        layer_series.append(series)
+
+    # Combine all dates
+    all_dates = sorted(set().union(*(s.index for s in layer_series)))
+
+    # Classify each date and compute values
+    records = []
+    for date in all_dates:
+        present = [
+            i
+            for i, s in enumerate(layer_series)
+            if date in s.index and not np.isnan(s[date])
+        ]
+        if len(present) == 0:
+            continue
+        elif len(present) == 1:
+            source_idx = present[0]
+            value = float(layer_series[source_idx][date])
+            source_label = layer_names[source_idx]
+        else:
+            # Overlap — sum values
+            source_idx = n_layers  # overlap band
+            value = sum(float(layer_series[i][date]) for i in present)
+            source_label = " + ".join(layer_names[i] for i in present)
+
+        record = {
+            "_layer_date": date,
+            "_layer_value": value,
+            "_layer_source_idx": source_idx,
+            "_layer_source": source_label,
+        }
+        # Store per-layer values for hover
+        for i, name in enumerate(layer_names):
+            if i in present:
+                record[f"_lv_{name}"] = float(layer_series[i][date])
+            else:
+                record[f"_lv_{name}"] = 0.0
+        records.append(record)
+
+    merged = pd.DataFrame(records)
+    if merged.empty:
+        merged["_layer_z"] = []
+        composite = build_composite_colorscale(
+            [layer["colorscale"] for layer in layers], overlap_colorscale
+        )
+        return merged, composite, "_layer_date", "_layer_z", layer_names
+
+    # Remap values into composite bands
+    n_bands = n_layers + 1
+    band_width = 1.0 / n_bands
+
+    # Compute min/max per band for normalization
+    band_mins = {}
+    band_maxs = {}
+    for band_idx in range(n_bands):
+        band_vals = merged.loc[merged["_layer_source_idx"] == band_idx, "_layer_value"]
+        if len(band_vals) > 0:
+            band_mins[band_idx] = band_vals.min()
+            band_maxs[band_idx] = band_vals.max()
+        else:
+            band_mins[band_idx] = 0.0
+            band_maxs[band_idx] = 1.0
+
+    def remap(row):
+        idx = int(row["_layer_source_idx"])
+        val = row["_layer_value"]
+        bmin = band_mins[idx]
+        bmax = band_maxs[idx]
+        if bmax == bmin:
+            t = 0.5
+        else:
+            t = (val - bmin) / (bmax - bmin)
+        # Small margin so we don't sit exactly on band boundaries
+        margin = 0.01 * band_width
+        band_start = idx * band_width + margin
+        band_end = (idx + 1) * band_width - margin
+        return band_start + t * (band_end - band_start)
+
+    merged["_layer_z"] = merged.apply(remap, axis=1)
+
+    # Build composite colorscale
+    composite = build_composite_colorscale(
+        [layer["colorscale"] for layer in layers], overlap_colorscale
+    )
+
+    return merged, composite, "_layer_date", "_layer_z", layer_names
+
+
+
+_TOOLBAR_HEIGHT = 50  # extra pixels reserved for the toolbar row
+
+
+def _apply_toolbar_layout(fig: go.Figure) -> None:
+    """Reserve space for the toolbar row and move the title into it.
+
+    Adds ``_TOOLBAR_HEIGHT`` pixels to both the top margin and the
+    total figure height so the plot area is not compressed.  The title
+    is repositioned to sit centered in the toolbar row alongside the
+    dropdown (left) and year buttons (right).
+    """
+    current_margin = fig.layout.margin
+    top = current_margin.t if current_margin.t is not None else 20
+    new_top = max(top, 30) + _TOOLBAR_HEIGHT
+    updates: dict = {"margin": {"t": new_top}}
+
+    # Grow the figure so the plot area keeps its original size.
+    total_h = fig.layout.height
+    if total_h is not None:
+        total_h = total_h + _TOOLBAR_HEIGHT
+        updates["height"] = total_h
+
+    # Place the title in the middle of the top margin area.
+    # title.y uses container-relative coords (0=bottom, 1=top).
+    if fig.layout.title and fig.layout.title.text and total_h:
+        title_y = 1.0 - (new_top / 2) / total_h
+        updates["title"] = {
+            "y": title_y,
+            "yanchor": "middle",
+            "x": 0.5,
+            "xanchor": "center",
+        }
+
+    fig.update_layout(**updates)
 
 
 def _prepare_dataset_configs(
@@ -131,12 +316,12 @@ def _add_dataset_navigation(
     """Build the dataset dropdown menu config.
 
     Returns a Plotly ``updatemenu`` dict (not applied to the figure).
+    The dropdown is placed in the top-left of the toolbar row.
     """
     total_traces = len(fig.data)
     buttons = []
 
     for dataset_name, config in dataset_configs.items():
-        # Show first year (or all years if no year navigation)
         vis = [False] * total_traces
         for t in trace_structure:
             if t["dataset"] != dataset_name:
@@ -161,7 +346,7 @@ def _add_dataset_navigation(
         buttons=buttons,
         x=0,
         xanchor="left",
-        y=1.0,
+        y=1.02,
         yanchor="bottom",
         showactive=True,
     )
@@ -178,10 +363,13 @@ def _add_year_navigation(
     trace_structure: Optional[List[Dict[str, Any]]] = None,
     current_dataset: Optional[str] = None,
 ) -> Union[go.Figure, dict]:
-    """Add year buttons on the right side of the chart.
+    """Add year navigation buttons.
 
     When *trace_structure* and *current_dataset* are provided (multi-dataset
     mode), returns the menu config dict instead of applying it directly.
+
+    By default buttons are placed in the top-right of the toolbar row,
+    laid out horizontally.
 
     Parameters
     ----------
@@ -195,7 +383,6 @@ def _add_year_navigation(
     total_traces = len(fig.data)
 
     if trace_structure is not None and current_dataset is not None:
-        # Multi-dataset mode: year buttons only affect current_dataset
         buttons = []
         for year in unique_years:
             vis = [False] * total_traces
@@ -207,14 +394,12 @@ def _add_year_navigation(
                 dict(method="restyle", args=[{"visible": vis}], label=str(year))
             )
     else:
-        # Legacy single-dataset mode
         offsets = []
         acc = 0
         for count in trace_counts:
             offsets.append(acc)
             acc += count
 
-        # Hide all traces except the first year
         for i in range(trace_counts[0], total_traces):
             fig.data[i].visible = False
 
@@ -239,13 +424,13 @@ def _add_year_navigation(
 
     menu_config = dict(
         type="buttons",
-        direction="down",
+        direction="right",
         active=0,
         buttons=buttons,
-        x=1.02,
-        xanchor="left",
-        y=1,
-        yanchor="top",
+        x=1,
+        xanchor="right",
+        y=1.02,
+        yanchor="bottom",
         showactive=True,
     )
     if nav_options:
@@ -259,9 +444,9 @@ def _add_year_navigation(
 
 
 def calheatmap(
-    data: DataFrame,
-    x: str,
-    y: str,
+    data: Optional[DataFrame] = None,
+    x: str = "",
+    y: str = "",
     name: str = "y",
     dark_theme: bool = False,
     month_lines_width: int = 1,
@@ -270,7 +455,9 @@ def calheatmap(
     years_title: bool = False,
     colorscale: Union[str, list] = "greens",
     colors: Optional[List[str]] = None,
-    scale_type: Optional[Literal["linear", "diverging", "quantile", "quantize", "categorical"]] = "linear",
+    scale_type: Optional[
+        Literal["linear", "diverging", "quantile", "quantize", "categorical"]
+    ] = "linear",
     bins: Optional[List[tuple]] = None,
     zero_color: Optional[str] = None,
     nan_color: Optional[str] = None,
@@ -326,6 +513,8 @@ def calheatmap(
     week_start: Literal["monday", "sunday", "saturday"] = "monday",
     layout: Literal["github", "calendar"] = "github",
     cols: int = 4,
+    layers: Optional[List[Dict[str, Any]]] = None,
+    overlap_colorscale: Union[str, list] = "greens",
 ) -> go.Figure:
     """
     Yearly Calendar Heatmap
@@ -523,7 +712,10 @@ def calheatmap(
             }
 
     dataset_nav_options : dict = None
-        Styling overrides for the dataset dropdown menu.
+        Styling overrides for the dataset dropdown menu. Supports any key
+        accepted by Plotly's updatemenus (e.g. x, y, xanchor, yanchor,
+        font, bgcolor, bordercolor, borderwidth, direction, pad).
+        Example: ``dataset_nav_options={"x": 0.5, "xanchor": "center"}``
 
     annotations : bool = False
         if True, displays cell values as text annotations inside each cell.
@@ -569,31 +761,104 @@ def calheatmap(
         from .calendar_calheatmap import _calendar_calheatmap_impl
 
         return _calendar_calheatmap_impl(
-            data=data, x=x, y=y, name=name, dark_theme=dark_theme,
-            cols=cols, gap=gap, colorscale=colorscale, title=title,
-            showscale=showscale, total_height=total_height, width=width,
-            margin=margin, cmap_min=cmap_min, cmap_max=cmap_max,
-            log_scale=log_scale, date_fmt=date_fmt, agg=agg,
-            locale=locale, paper_bgcolor=paper_bgcolor,
-            plot_bgcolor=plot_bgcolor, font_color=font_color,
-            font_size=font_size, title_font_color=title_font_color,
-            title_font_size=title_font_size, hovertemplate=hovertemplate,
-            start_month=start_month, end_month=end_month,
+            data=data,
+            x=x,
+            y=y,
+            name=name,
+            dark_theme=dark_theme,
+            cols=cols,
+            gap=gap,
+            colorscale=colorscale,
+            title=title,
+            showscale=showscale,
+            total_height=total_height,
+            width=width,
+            margin=margin,
+            cmap_min=cmap_min,
+            cmap_max=cmap_max,
+            log_scale=log_scale,
+            date_fmt=date_fmt,
+            agg=agg,
+            locale=locale,
+            paper_bgcolor=paper_bgcolor,
+            plot_bgcolor=plot_bgcolor,
+            font_color=font_color,
+            font_size=font_size,
+            title_font_color=title_font_color,
+            title_font_size=title_font_size,
+            hovertemplate=hovertemplate,
+            start_month=start_month,
+            end_month=end_month,
             week_start=week_start,
         )
+
+    # Validate: either data+x+y or layers must be provided
+    if layers is None and (data is None or not x or not y):
+        raise ValueError("Either provide data/x/y or use the layers parameter.")
 
     # annotations_fmt implies annotations=True
     if annotations_fmt is not None:
         annotations = True
+
+    # --- Multi-layer mode ---
+    _layer_names = None
+    if layers is not None:
+        merged_data, composite_cs, x, y, _layer_names = _merge_layers(
+            layers,
+            overlap_colorscale,
+            date_fmt=date_fmt,
+            agg=agg,
+        )
+        data = merged_data
+        colorscale = composite_cs
+        cmap_min = 0.0
+        cmap_max = 1.0
+        agg = None  # already aggregated
+        name = "Value"
+        # Extra customdata columns (appended after pipeline's [date, name] at indices 0,1)
+        # Index 2 = _layer_source, 3..N+2 = per-layer values, N+3 = total
+        extra_cols = (
+            ["_layer_source"] + [f"_lv_{ln}" for ln in _layer_names] + ["_layer_value"]
+        )
+        customdata = extra_cols
+        # Build a hover template showing per-layer breakdown
+        if hovertemplate is None:
+            base_offset = 2  # pipeline always prepends date[0] and name[1]
+            src_idx = base_offset  # _layer_source
+            hover_parts = ["<b>%{customdata[0]}</b>"]
+            hover_parts.append("Source: %{customdata[" + str(src_idx) + "]}")
+            for i, ln in enumerate(_layer_names):
+                col_idx = base_offset + 1 + i
+                hover_parts.append(f"{ln}: %{{customdata[{col_idx}]}}")
+            total_idx = base_offset + 1 + len(_layer_names)
+            hover_parts.append("Total: %{customdata[" + str(total_idx) + "]}")
+            hover_parts.append("<extra></extra>")
+            hovertemplate = "<br>".join(hover_parts)
+        # Pre-format numeric columns as strings (pipeline converts to str via numpy)
+        for col in [f"_lv_{ln}" for ln in _layer_names] + ["_layer_value"]:
+            data[col] = data[col].apply(
+                lambda v: f"{v:,.2f}" if not np.isnan(v) else ""
+            )
 
     data = data.copy()
     data[x] = validate_date_column(data[x], date_fmt)
 
     # Normalize dataset configs
     dataset_configs = _prepare_dataset_configs(
-        datasets, y, colorscale, showscale, cmap_min, cmap_max, name,
-        colors=colors, scale_type=scale_type, zero_color=zero_color, nan_color=nan_color,
-        pivot=pivot, symmetric=symmetric, bins=bins,
+        datasets,
+        y,
+        colorscale,
+        showscale,
+        cmap_min,
+        cmap_max,
+        name,
+        colors=colors,
+        scale_type=scale_type,
+        zero_color=zero_color,
+        nan_color=nan_color,
+        pivot=pivot,
+        symmetric=symmetric,
+        bins=bins,
     )
     use_dataset_swap = len(dataset_configs) > 1
 
@@ -617,7 +882,11 @@ def calheatmap(
 
     if skip_empty_years:
         unique_years = np.array(
-            [yr for yr in unique_years if data.loc[data[x].dt.year == yr, primary_y].sum() >= 1]
+            [
+                yr
+                for yr in unique_years
+                if data.loc[data[x].dt.year == yr, primary_y].sum() >= 1
+            ]
         )
 
     unique_years_amount = len(unique_years)
@@ -713,14 +982,24 @@ def calheatmap(
             ds_cfg["colorscale"] = ds_colorscale
         elif ds_cfg.get("zero_color") is not None and isinstance(ds_colorscale, list):
             ds_colorscale = _apply_zero_color(
-                ds_colorscale, ds_cfg["zero_color"], ds_cmap_min, ds_cmap_max,
+                ds_colorscale,
+                ds_cfg["zero_color"],
+                ds_cmap_min,
+                ds_cmap_max,
             )
             ds_cfg["colorscale"] = ds_colorscale
 
         # Apply nan_color when using a pre-built colorscale (no colors list)
-        if ds_nan_color is not None and ds_nan_sentinel is None and isinstance(ds_colorscale, list):
+        if (
+            ds_nan_color is not None
+            and ds_nan_sentinel is None
+            and isinstance(ds_colorscale, list)
+        ):
             ds_colorscale, ds_nan_sentinel = _apply_nan_color(
-                ds_colorscale, ds_nan_color, ds_cmap_min, ds_cmap_max,
+                ds_colorscale,
+                ds_nan_color,
+                ds_cmap_min,
+                ds_cmap_max,
             )
             ds_cfg["colorscale"] = ds_colorscale
 
@@ -774,7 +1053,11 @@ def calheatmap(
                 total_height=total_height,
                 text=None if text is None else selected_year_data[text].tolist(),
                 text_name=text,
-                years_as_columns=years_as_columns if not (use_navigation or use_dataset_swap) else False,
+                years_as_columns=(
+                    years_as_columns
+                    if not (use_navigation or use_dataset_swap)
+                    else False
+                ),
                 start_month=start_month,
                 end_month=end_month,
                 locale=locale,
@@ -808,12 +1091,14 @@ def calheatmap(
 
             tc = len(fig.data) - traces_before
             dataset_trace_counts.append(tc)
-            trace_structure.append({
-                "dataset": dataset_label,
-                "year": year,
-                "start": traces_before,
-                "count": tc,
-            })
+            trace_structure.append(
+                {
+                    "dataset": dataset_label,
+                    "year": year,
+                    "start": traces_before,
+                    "count": tc,
+                }
+            )
 
         # Apply colorscaling to this dataset's traces
         ds_start = trace_structure[-len(unique_years)]["start"]
@@ -822,14 +1107,20 @@ def calheatmap(
             for idx in range(ds_start, ds_end):
                 trace = fig.data[idx]
                 if hasattr(trace, "zmin"):
-                    trace.zmin = ds_nan_sentinel if ds_nan_sentinel is not None else ds_cmap_min
+                    trace.zmin = (
+                        ds_nan_sentinel if ds_nan_sentinel is not None else ds_cmap_min
+                    )
                     trace.zmax = ds_cmap_max
 
         # Show colorbar for this dataset if configured (only in colorbar mode)
         ds_showscale = ds_cfg["showscale"]
         if ds_showscale and not use_discrete_legend:
             scale_title = ds_showscale if isinstance(ds_showscale, str) else ""
-            tick_vals = np.linspace(ds_cmap_min, ds_cmap_max, 5).tolist() if scale_ticks else None
+            tick_vals = (
+                np.linspace(ds_cmap_min, ds_cmap_max, 5).tolist()
+                if scale_ticks
+                else None
+            )
             colorbar = dict(
                 orientation="h",
                 yanchor="top",
@@ -847,7 +1138,9 @@ def calheatmap(
                     colorbar["tickmode"] = "array"
             # Apply user overrides
             if colorbar_options:
-                if "title" in colorbar_options and isinstance(colorbar_options["title"], str):
+                if "title" in colorbar_options and isinstance(
+                    colorbar_options["title"], str
+                ):
                     colorbar["title"] = dict(text=colorbar_options["title"], side="top")
                 else:
                     for k, v in colorbar_options.items():
@@ -894,29 +1187,33 @@ def calheatmap(
         menus = []
         menus.append(
             _add_dataset_navigation(
-                fig, dataset_configs, trace_structure,
-                unique_years, use_navigation, dataset_nav_options,
+                fig,
+                dataset_configs,
+                trace_structure,
+                unique_years,
+                use_navigation,
+                dataset_nav_options,
             )
         )
         if use_navigation:
             menus.append(
                 _add_year_navigation(
-                    fig, unique_years, trace_counts,
+                    fig,
+                    unique_years,
+                    trace_counts,
                     nav_options=nav_options,
                     trace_structure=trace_structure,
                     current_dataset=first_dataset,
                 )
             )
         fig.update_layout(updatemenus=menus)
-        # Add top margin so the dropdown doesn't overlap the plot
-        current_margin = fig.layout.margin
-        top = current_margin.t if current_margin.t is not None else 20
-        fig.update_layout(margin={"t": max(top, 80)})
+        _apply_toolbar_layout(fig)
     else:
         if use_navigation:
             fig = _add_year_navigation(
                 fig, unique_years, trace_counts, nav_options=nav_options
             )
+            _apply_toolbar_layout(fig)
 
     return fig
 
@@ -1117,8 +1414,12 @@ def month_calheatmap(
             colorbar_config["tickvals"] = np.linspace(zmin, zmax, 5).tolist()
         # Apply user overrides
         if colorbar_options:
-            if "title" in colorbar_options and isinstance(colorbar_options["title"], str):
-                colorbar_config["title"] = dict(text=colorbar_options["title"], side="top")
+            if "title" in colorbar_options and isinstance(
+                colorbar_options["title"], str
+            ):
+                colorbar_config["title"] = dict(
+                    text=colorbar_options["title"], side="top"
+                )
             else:
                 for k, v in colorbar_options.items():
                     colorbar_config[k] = v
@@ -1133,7 +1434,9 @@ def month_calheatmap(
     if annotations:
         ann_texttemplate = annotations_fmt if annotations_fmt else "%{z:.0f}"
         font = {}
-        font["size"] = annotations_font_size if annotations_font_size is not None else 10
+        font["size"] = (
+            annotations_font_size if annotations_font_size is not None else 10
+        )
         if annotations_font_color is not None:
             font["color"] = annotations_font_color
         if annotations_font_family is not None:

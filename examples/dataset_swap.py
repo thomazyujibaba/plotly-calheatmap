@@ -7,12 +7,14 @@ from plotly_calheatmap import calheatmap
 np.random.seed(42)
 dates = pd.date_range("2022-01-01", "2024-12-31", freq="D")
 
-df = pd.DataFrame({
-    "date": dates,
-    "sales": np.random.randint(50, 1500, len(dates)),
-    "activity": np.random.uniform(0, 12, len(dates)).round(1),
-    "temperature": np.random.uniform(10, 38, len(dates)).round(1),
-})
+df = pd.DataFrame(
+    {
+        "date": dates,
+        "sales": np.random.randint(50, 1500, len(dates)),
+        "activity": np.random.uniform(0, 12, len(dates)).round(1),
+        "temperature": np.random.uniform(10, 38, len(dates)).round(1),
+    }
+)
 
 fig = calheatmap(
     data=df,

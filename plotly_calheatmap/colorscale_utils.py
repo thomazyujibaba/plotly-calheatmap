@@ -404,3 +404,146 @@ def extract_legend_bins(
         f"Cannot extract legend bins for scale_type={scale_type!r}. "
         "Use 'quantile', 'quantize', or 'categorical'."
     )
+
+
+def _resolve_plotly_colorscale(colorscale):
+    """Resolve a colorscale name or list into a list of [[pos, color], ...].
+
+    Accepts Plotly named colorscales (e.g. ``"blues"``) or already-expanded
+    lists like ``[[0, "#fff"], [1, "#000"]]``.
+    """
+    if isinstance(colorscale, str):
+        import plotly.colors as pc
+
+        name = colorscale.capitalize()
+        # Try sequential, diverging, then qualitative
+        for attr in ("sequential", "diverging", "qualitative"):
+            module = getattr(pc, attr, None)
+            if module and hasattr(module, name):
+                raw = getattr(module, name)
+                # Plotly stores them as list of rgb/hex strings
+                if raw and isinstance(raw[0], str):
+                    n = len(raw)
+                    return [[i / (n - 1), c] for i, c in enumerate(raw)]
+                return [list(pair) for pair in raw]
+        # Fallback: use plotly's built-in get_colorscale
+        return [list(pair) for pair in pc.get_colorscale(colorscale)]
+    # Already a list
+    return [list(pair) for pair in colorscale]
+
+
+def build_composite_colorscale(layer_colorscales, overlap_colorscale, n_stops=6):
+    """Build a single colorscale with distinct bands for each layer + overlap.
+
+    Parameters
+    ----------
+    layer_colorscales : list of (str or list)
+        One colorscale per layer (e.g. ``["blues", "reds"]``).
+    overlap_colorscale : str or list
+        Colorscale for days where multiple layers overlap.
+    n_stops : int
+        Number of color stops to sample from each sub-colorscale.
+
+    Returns
+    -------
+    list of [float, str]
+        Unified Plotly colorscale where each band occupies an equal
+        fraction of [0, 1].
+    """
+    n_bands = len(layer_colorscales) + 1  # layers + overlap
+    band_width = 1.0 / n_bands
+
+    all_scales = [_resolve_plotly_colorscale(cs) for cs in layer_colorscales]
+    all_scales.append(_resolve_plotly_colorscale(overlap_colorscale))
+
+    composite = []
+    for band_idx, scale in enumerate(all_scales):
+        band_start = band_idx * band_width
+        band_end = (band_idx + 1) * band_width
+
+        # Sample n_stops evenly from the source scale
+        for i in range(n_stops):
+            t = i / (n_stops - 1)  # 0..1 within source scale
+            # Interpolate color from source scale
+            color = _interpolate_color(scale, t)
+            pos = band_start + t * (band_end - band_start)
+            # Clamp to avoid floating point issues
+            pos = max(0.0, min(1.0, pos))
+            composite.append([pos, color])
+
+        # Add sharp boundary at band end (duplicate position with next band's
+        # first color) to prevent gradient bleeding between bands.
+        # Not needed for the last band.
+        if band_idx < len(all_scales) - 1:
+            next_scale = all_scales[band_idx + 1]
+            next_color = _interpolate_color(next_scale, 0.0)
+            composite.append([band_end, next_color])
+
+    return composite
+
+
+def _interpolate_color(scale, t):
+    """Linearly interpolate a color at position *t* (0–1) from a colorscale.
+
+    Parameters
+    ----------
+    scale : list of [float, str]
+        Plotly colorscale.
+    t : float
+        Position in [0, 1].
+
+    Returns
+    -------
+    str
+        Hex color string.
+    """
+    import plotly.colors as pc
+
+    if t <= 0:
+        return _to_hex(scale[0][1])
+    if t >= 1:
+        return _to_hex(scale[-1][1])
+
+    # Find the two surrounding stops
+    for i in range(len(scale) - 1):
+        p0, c0 = scale[i]
+        p1, c1 = scale[i + 1]
+        if p0 <= t <= p1:
+            # Local interpolation factor
+            f = (t - p0) / (p1 - p0) if p1 != p0 else 0.0
+            r0, g0, b0 = _parse_color(c0)
+            r1, g1, b1 = _parse_color(c1)
+            r = int(r0 + f * (r1 - r0))
+            g = int(g0 + f * (g1 - g0))
+            b = int(b0 + f * (b1 - b0))
+            return f"#{r:02x}{g:02x}{b:02x}"
+
+    return _to_hex(scale[-1][1])
+
+
+def _parse_color(color_str):
+    """Parse a color string (hex or rgb()) into (r, g, b) ints."""
+    import plotly.colors as pc
+
+    c = str(color_str).strip()
+    if c.startswith("#"):
+        c = c.lstrip("#")
+        if len(c) == 3:
+            c = c[0] * 2 + c[1] * 2 + c[2] * 2
+        return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+    if c.startswith("rgb"):
+        nums = c.replace("rgba", "").replace("rgb", "").strip("() ")
+        parts = [int(float(x.strip())) for x in nums.split(",")[:3]]
+        return parts[0], parts[1], parts[2]
+    # Try plotly's conversion
+    try:
+        converted = pc.unconvert_from_RGB_255(pc.convert_to_RGB_255(pc.label_rgb(pc.unlabel_rgb(c))))
+    except Exception:
+        return 128, 128, 128  # fallback grey
+    return int(converted[0] * 255), int(converted[1] * 255), int(converted[2] * 255)
+
+
+def _to_hex(color_str):
+    """Convert any color string to hex."""
+    r, g, b = _parse_color(color_str)
+    return f"#{r:02x}{g:02x}{b:02x}"

@@ -8,6 +8,8 @@
 - **Colorbar customization** — New `colorbar_options` parameter allows overriding any Plotly colorbar property (`orientation`, `x`, `y`, `thickness`, `len`, `tickformat`, `title`, etc.) for both `calheatmap` and `month_calheatmap`.
 - **Custom week start day** — New `week_start` parameter lets users choose `"monday"` (default, ISO 8601), `"sunday"` (US convention), or `"saturday"` as the first day of the week. Day labels, weekday positions, and week numbering all adjust automatically. New example: `week_start_day.py`.
 - **Wall-calendar layout** — New `layout="calendar"` parameter on `calheatmap()` renders a grid of mini-calendars (one per month), each with days-of-week as columns and weeks as rows — like a standard wall calendar. Supports `week_start`, `cols` for grid layout, and all common styling parameters. New example: `calendar_layout.py`.
+- **Multi-layer heatmap** — New `layers` parameter overlays multiple DataFrames on a single calendar, each with its own color gradient. Overlap days are automatically summed and rendered with a distinct colorscale (`overlap_colorscale`). Hover shows per-layer breakdown and total. Useful for comparing two related metrics (e.g. revenue vs expenses) on one chart. New example: `multi_layer.py`.
+- **Toolbar layout for controls** — Dataset dropdown and year navigation buttons are now placed in a dedicated toolbar row at the top of the chart (dropdown left, title center, year buttons right-horizontal). The figure height grows automatically to accommodate the toolbar without compressing the plot area. Both controls remain fully customizable via `dataset_nav_options` and `nav_options`.
 
 ### Bug Fixes
 

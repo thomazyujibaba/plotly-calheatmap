@@ -7,6 +7,7 @@ This project picks up where plotly-calplot left off, providing an interactive ca
 ## Features
 
 - Interactive calendar heatmaps built with Plotly
+- **Multi-layer heatmap** — overlay multiple DataFrames on one calendar with distinct color gradients per source; overlap days are summed and shown in a third colorscale (`layers` parameter)
 - **Dataset swap** — switch between multiple metrics via dropdown without regenerating the graph (`datasets` parameter)
 - **Built-in aggregation** — pass raw event data with `agg="sum"|"mean"|"count"|"max"` instead of pre-aggregating
 - **Logarithmic color scale** — `log_scale=True` applies `log(1+x)` so extreme values don't wash out the heatmap
@@ -225,6 +226,22 @@ Choose which day the week starts on — `"monday"` (default, ISO 8601), `"sunday
 ```python
 fig = calheatmap(df, x="date", y="value", week_start="sunday")
 ```
+
+### Multi-Layer Heatmap
+
+Overlay two (or more) DataFrames on one calendar. Each source gets its own color gradient; days present in both are summed and shown with a third colorscale:
+
+```python
+fig = calheatmap(
+    layers=[
+        {"data": revenue,  "x": "date", "y": "value", "colorscale": "blues",  "name": "Revenue"},
+        {"data": expenses, "x": "date", "y": "value", "colorscale": "reds",   "name": "Expenses"},
+    ],
+    overlap_colorscale="greens",
+)
+```
+
+Hover shows per-source values and the combined total for overlap days.
 
 ### Wall-Calendar Layout
 
