@@ -1,6 +1,6 @@
 # plotly-calheatmap
 
-A continuation of [plotly-calplot](https://github.com/brunorosilva/plotly-calplot) by Bruno Rocha Silva, which is no longer actively maintained.
+A continuation of [plotly-calplot](https://github.com/brunorosilva/plotly-calplot) by Bruno `rosilva` Chicelli, which is no longer actively maintained.
 
 This project picks up where plotly-calplot left off, providing an interactive calendar heatmap built with Plotly — similar to the contribution graphs on GitHub and GitLab profile pages.
 
@@ -262,4 +262,4 @@ fig = calheatmap(df, x="date", y="value", layout="calendar", cols=4)
 
 ## Credits
 
-This project is based on the original work by [Bruno Rocha Silva](https://github.com/brunorosilva) — [plotly-calplot](https://github.com/brunorosilva/plotly-calplot).
+This project is based on the original work by [Bruno `rosilva` Chicelli](https://github.com/brunorosilva) — [plotly-calplot](https://github.com/brunorosilva/plotly-calplot).
